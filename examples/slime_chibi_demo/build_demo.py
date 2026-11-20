@@ -150,7 +150,7 @@ def main():
         assets[f"star_{f:02d}"] = {"file": rel}
 
     pack = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "title": "SLIME SPIRIT 3D DEMO",
         "subtitle": "ANIME PSEUDO-3D ENGINE DEMO (2x24FPS)",
         "badge_icon": "ico_brand",
@@ -159,6 +159,7 @@ def main():
             "animFps": 24,
             "renderMode": 2,
             "dotSize": 1.35,
+            "pitchDeg": 20,
             "squash": 0.35,
             "spacing": 1.0,
             "zoom": 1.45,
