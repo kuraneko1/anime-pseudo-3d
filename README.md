@@ -116,16 +116,16 @@
 
 ---
 
-## アーキテクチャ（4 層分離：多面図接合・モデル制作・`.ap3d` 形式・再利用 UI ＆ WebGL エンジン）
+## アーキテクチャ（4 層分離：多面図設計図・純粋 GPU SDF 制作・`.ap3d` 形式・再利用 UI ＆ WebGL エンジン）
 
 ```mermaid
 flowchart LR
-  subgraph T1["toolkit/ (多面図 3D 接合 & 24FPS アニメーション制作)"]
-    MV["multiview_fitter.py (上下左右三面図分割・Z整列・Visual Hull・6面色接合)"]
-    SDF["gpu_sdf.py (CuPy GPU / NumPy CPU 自動切替 SDF)"]
-    FACE["anime_face_kit.py (元絵顔投影 & 安全表情合成)"]
-    RIG["rig_contracts.py (FK + 3D IK 統一 PoseFrame)"]
-    QA["qa_validator.py (クリップ/ループ連続性/IoU QA)"]
+  subgraph T1["toolkit/ (多面図ブループリント計測 & 純粋 GPU SDF 24FPS 制作)"]
+    MV["multiview_fitter.py (連結成分分割・Z整列・パレット抽出・IoU QA ※テクスチャ直貼り禁止)"]
+    SDF["gpu_sdf.py (CuPy GPU / NumPy CPU 純粋 SDF・3段セル陰影・食い込み造形)"]
+    FACE["anime_face_kit.py (純粋 SDF 表情 / 髪なし顔パーツ投影)"]
+    RIG["rig_contracts.py (FK + 3D IK・物理連動 PoseFrame)"]
+    QA["qa_validator.py (全フレーム越界検査 / 6視点 3D QA シート)"]
     AP3D["ap3d_format.py (.ap3d バイナリ pack/unpack/merge)"]
   end
 
@@ -158,10 +158,11 @@ flowchart LR
 - **真の 3D 正射影＆4 質感シェーダー**: 角度量子化ゼロの連続 0.001° GPU 回転 ＋ 真の 3D 正射影（`y = rot.y · sin θ − z · cos θ`、`PITCH 15°〜90°`・初期値 `20°`）＋ 2x インターリーブ補間（320 層）＋ 4 質感モード（`SMOOTH AA` / `PIXEL+AA` / `RETRO PX` / `SILKY 3D`）。
 - **複数 3D スタック前後 Z ソート & 宣言的 FX**: 3D 相棒モデル・吹き出し・3D パーティクルを JSON 定義のみでエンジン無改造駆動。
 
-### 2. 多面図自動接合 ＆ アニメ調 3D 制作ツールキット（`toolkit/`）
-- **`multiview_fitter.py`（新搭載・他セッション再現保証）**: 画像生成で作った `FRONT / SIDE / BACK / TOP` 三面図シートを境界フラッドフィルで白服・白目を残したまま自動分割し、Z 軸ランドマーク（頭頂・目・顎・首・肩・腰・足裏）を自動計測。Visual Hull 構築・法線重み付き **6 方向シームレス色接合**・シルエット IoU 自動 QA（`qa_3d_fit_overlay.png`）まで一気通貫で実行できます。
+### 2. 多面図ブループリント計測 ＆ 純粋 GPU SDF 制作ツールキット（`toolkit/`）
+- **`multiview_fitter.py`（ブループリント専用・テクスチャ直貼り禁止設計）**: 画像生成で作った `FRONT / SIDE / BACK / TOP` 三面図シートを連結成分ベースで安全分割し、共通ベースライン整列・囲まれ白抜き穴除去・クリーンなセル塗りパレット抽出（`sample_clean_palette`）・シルエット IoU 自動 QA（`qa_3d_fit_overlay.png`、目標 `≥ 72%`）を実行。2D 線画が滲む**画像テクスチャ直貼りは行わず**、純粋な 3D SDF 造形の設計図・検査基準として活用します。
+- **`full3d_mesh_kit.py` / `ap3d_to_full3d.py` / `engine/full3d_mesh_engine.js`（軽量・完全 3D ポリゴン変換＆`.glb` 出力）**: 同じ `AnimeUIKit` UI を完全流用したまま、既存 `.ap3d` をコマンド 1 本で軽量フル 3D HTML＋Blender/Unity 用 `.glb` へ変換可能。さらに SDF 造形から直接 Surface Nets＋法線外向き検証済み 3D チューブ／球／歯メッシュを抽出し、60 FPS・上下 `-65°〜+90°` 自由視点の完全 3D ビューアも構築できます。
 - **`ap3d_format.py`**: Python CLI で `.ap3d` の `pack` / `unpack` / `inspect` / `merge`（既存キャラへ新モーションを再ベイクなしで結合）に対応。
-- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: CuPy GPU / NumPy CPU 自動切替 SDF、元絵顔斜め投影、FK + 3D IK 統一 `PoseFrame`、境界クリッピング検査＆最適化 GIF 録画。
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: CuPy GPU / NumPy CPU 自動切替 SDF（float32 NaN 防止 `safe_sin_pow`・3D 縄/帯 `sd_polyline`・食い込み＆膨らみ造形 `sdf_indent_bulge`・3 段法線セル陰影）、FK/IK ＆ 物理連動リグ、全フレーム境界クリッピング検査＆最適化 GIF 録画。
 
 ---
 
@@ -182,10 +183,10 @@ anime-pseudo-3d/
 │   ├── bundle_standalone.py      # 単一 HTML / .ap3d / 汎用プレイヤーバンドラ
 │   └── audit_pixel_build.py      # HTML + CSS + JS ピクセル純度チェッカー
 ├── toolkit/
-│   ├── multiview_fitter.py       # 上下左右多面図の自動分割・Z整列・Visual Hull・6面色接合・IoU QA
+│   ├── multiview_fitter.py       # 多面図の連結成分分割・Z整列・パレット抽出・シルエット IoU QA
 │   ├── ap3d_format.py            # .ap3d バイナリ CLI (pack / unpack / inspect / merge)
-│   ├── gpu_sdf.py                # CuPy GPU / NumPy CPU 3D SDF プリミティブ
-│   ├── anime_face_kit.py         # 斜め顔投影 & 表情合成ヘルパー
+│   ├── gpu_sdf.py                # CuPy GPU / NumPy CPU 純粋 3D SDF・NaNガード・食い込み造形
+│   ├── anime_face_kit.py         # 髪なし顔パーツ投影 & 表情合成ヘルパー
 │   ├── rig_contracts.py          # FK/IK 統一 PoseFrame & 周期曲線
 │   ├── pixel_fx_kit.py           # ドット FX・水滴/泡/斬撃/水紋・16x16 アイコン生成
 │   ├── qa_validator.py           # 事前数理 QA + クリップ検査 + 3D QA シート
@@ -194,7 +195,7 @@ anime-pseudo-3d/
 │   ├── ap3d_player.html          # 軽量ユニバーサル .ap3d プレイヤー (ドラッグ＆ドロップ対応)
 │   └── slime_chibi_demo/         # 最小構成デモ（単一 HTML + slime-chibi.ap3d 自動出力）
 └── references/
-    ├── multiview_3d_reconstruction_guide.md  # 多面図画像生成プロンプト & 3D 接合ガイド
+    ├── multiview_3d_reconstruction_guide.md  # 多面図ブループリント & 純粋 SDF IoU QA ガイド
     ├── anime_model_guide.md                  # アニメ調モデル設計ガイド
     ├── animation_24fps_guide.md              # 24 FPS モーション & IK ガイド
     └── webgl_engine_guide.md                 # WebGL エンジン・AnimeUIKit・.ap3d リファレンス

@@ -306,14 +306,19 @@
     }
 
     function setActive(activeId) {
+      const changed = (activeId !== activeMotionId);
       activeMotionId = activeId;
       const curIdx = Math.max(0, allMotions.findIndex((m) => m.id === activeMotionId));
       countBadge.textContent = allMotions.length > 0 ? `${curIdx + 1}/${allMotions.length}` : "0/0";
       grid.querySelectorAll("[data-motion]").forEach((btn) => {
         const isAct = btn.getAttribute("data-motion") === activeMotionId;
         btn.classList.toggle("active", isAct);
-        if (isAct && typeof btn.scrollIntoView === "function") {
-          btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+        if (changed && isAct) {
+          // Scroll ONLY the inner .motion-shelf container so mobile .panel scroll never jumps!
+          const top = btn.offsetTop - shelf.offsetTop;
+          const bot = top + btn.offsetHeight;
+          if (top < shelf.scrollTop) shelf.scrollTop = top;
+          else if (bot > shelf.scrollTop + shelf.clientHeight) shelf.scrollTop = bot - shelf.clientHeight;
         }
       });
     }
@@ -328,10 +333,16 @@
     const ico = el("img", "px-ico");
     ico.setAttribute("data-ico", "ico_layers");
     ico.alt = "package";
+    const headTitle = el("span", "", "PACKAGE & EXPORT");
     headLeft.appendChild(ico);
-    headLeft.appendChild(el("span", "", "PACKAGE (.AP3D)"));
+    headLeft.appendChild(headTitle);
     head.appendChild(headLeft);
     section.appendChild(head);
+
+    const fmtBar = el("div", "motion-cat-bar");
+    fmtBar.id = "exportFmtBar";
+    fmtBar.style.display = "none";
+    section.appendChild(fmtBar);
 
     const row = el("div", "file-io-row");
 
@@ -372,8 +383,11 @@
     const btnExport = el("button", "px-btn gold", "EXPORT");
     btnExport.type = "button";
     btnExport.id = "btnExportAp3d";
-    btnExport.title = "Export current character & motions as .ap3d";
-    btnExport.addEventListener("click", () => { if (onExport) onExport(); });
+    btnExport.title = "Export in selected format";
+    let selectedFormat = "ap3d";
+    let currentFormats = [];
+    let currentCanLoad = true;
+    btnExport.addEventListener("click", () => { if (onExport) onExport(selectedFormat); });
 
     row.appendChild(btnLoad);
     row.appendChild(btnMerge);
@@ -382,7 +396,56 @@
     section.appendChild(inputLoad);
     section.appendChild(inputMerge);
 
-    return { el: section, btnLoad, btnMerge, btnExport, triggerLoad: () => inputLoad.click() };
+    function updateExportLabel() {
+      const active = currentFormats.find((f) => f.id === selectedFormat);
+      btnExport.textContent = (!currentCanLoad && active) ? ("EXPORT " + active.label) : "EXPORT";
+    }
+
+    function syncCapabilities(formats, canLoad) {
+      currentFormats = Array.isArray(formats) ? formats : [];
+      currentCanLoad = Boolean(canLoad);
+      if (currentFormats.length === 0 && !currentCanLoad) {
+        section.style.display = "none";
+        return;
+      }
+      section.style.display = "";
+      headTitle.textContent = currentCanLoad ? "PACKAGE & EXPORT" : "EXPORT 3D / IMAGE";
+      btnLoad.style.display = currentCanLoad ? "" : "none";
+      btnMerge.style.display = currentCanLoad ? "" : "none";
+      row.classList.toggle("export-only", !currentCanLoad);
+
+      if (currentFormats.length > 0 && !currentFormats.some((f) => f.id === selectedFormat)) {
+        selectedFormat = currentFormats[0].id;
+      }
+      fmtBar.innerHTML = "";
+      if (currentFormats.length >= 2) {
+        fmtBar.style.display = "flex";
+        currentFormats.forEach((f) => {
+          const pill = el("button", "cat-pill" + (f.id === selectedFormat ? " active" : ""), f.label);
+          pill.type = "button";
+          pill.setAttribute("data-expfmt", f.id);
+          pill.addEventListener("click", () => {
+            selectedFormat = f.id;
+            fmtBar.querySelectorAll(".cat-pill").forEach((p) => p.classList.toggle("active", p.getAttribute("data-expfmt") === selectedFormat));
+            updateExportLabel();
+          });
+          fmtBar.appendChild(pill);
+        });
+      } else {
+        fmtBar.style.display = "none";
+      }
+      updateExportLabel();
+    }
+
+    return {
+      el: section,
+      btnLoad,
+      btnMerge,
+      btnExport,
+      syncCapabilities,
+      getSelectedFormat: () => selectedFormat,
+      triggerLoad: () => inputLoad.click(),
+    };
   }
 
   function mountStudioUI(rootEl, engine, options) {
@@ -662,9 +725,9 @@
       panel.appendChild(sec);
     }
 
-    // 6. Portable Package (.ap3d) Load / Merge / Export
+    // 6. Portable Package (.ap3d) Load / Merge & Selectable Format Export (.ap3d / .glb / .png)
     let fileIO = null;
-    if (opts.showFileIO && global.AP3DCodec) {
+    if (opts.showFileIO) {
       fileIO = createFileIOControls({
         onLoadFile: async (file) => {
           try {
@@ -682,10 +745,15 @@
             showToast(`MERGE ERROR: ${err.message || err}`);
           }
         },
-        onExport: async () => {
+        onExport: async (fmt) => {
           try {
-            const info = await engine.exportAP3D();
-            showToast(`EXPORTED ${info.filename} (${Math.round(info.bytes / 1024)} KB)`);
+            const info = (typeof engine.exportByFormat === "function")
+              ? await engine.exportByFormat(fmt)
+              : await engine.exportAP3D();
+            if (info && info.filename) {
+              const kb = info.bytes ? ` (${Math.max(1, Math.round(info.bytes / 1024))} KB)` : "";
+              showToast(`EXPORTED ${info.filename}${kb}`);
+            }
           } catch (err) {
             showToast(`EXPORT ERROR: ${err.message || err}`);
           }
@@ -699,19 +767,27 @@
     shell.appendChild(panel);
     rootEl.appendChild(shell);
 
-    // Attach stage drag-and-drop for .ap3d files
+    function canAcceptAp3dDrop() {
+      const cap = engine.supportsAP3DLoad && engine.supportsAP3DLoad();
+      return cap !== undefined ? Boolean(cap) : Boolean(global.AP3DCodec);
+    }
+
+    // Attach stage drag-and-drop for .ap3d files (active only when engine supports .ap3d loading)
     let dragCounter = 0;
     stageWrap.addEventListener("dragenter", (e) => {
+      if (!canAcceptAp3dDrop()) return;
       e.preventDefault();
       dragCounter++;
       dropOverlay.classList.add("active");
     });
-    stageWrap.addEventListener("dragover", (e) => { e.preventDefault(); });
+    stageWrap.addEventListener("dragover", (e) => { if (canAcceptAp3dDrop()) e.preventDefault(); });
     stageWrap.addEventListener("dragleave", () => {
+      if (!canAcceptAp3dDrop()) return;
       dragCounter = Math.max(0, dragCounter - 1);
       if (dragCounter === 0) dropOverlay.classList.remove("active");
     });
     stageWrap.addEventListener("drop", async (e) => {
+      if (!canAcceptAp3dDrop()) return;
       e.preventDefault();
       dragCounter = 0;
       dropOverlay.classList.remove("active");
@@ -819,6 +895,10 @@
       motionShelf.refresh(motions, st.motion);
       const curM = engine.getActiveMotion();
       timeline.update(st.manualFrame, curM ? (curM.frames || 24) : 1);
+      if (fileIO) {
+        const fmts = (engine.getExportFormats && engine.getExportFormats()) || (global.AP3DCodec ? [{ id: "ap3d", label: ".AP3D" }] : []);
+        fileIO.syncCapabilities(fmts, canAcceptAp3dDrop());
+      }
       syncAll();
       hydrateIcons();
     }

@@ -38,6 +38,7 @@
         "yOffset": { "type": "number", "default": 0.0 },
         "fboVirtW": { "type": "integer", "default": 196 },
         "fboVirtH": { "type": "integer", "default": 440 },
+        "fboSS": { "type": "integer", "minimum": 2, "maximum": 4, "default": 2 },
         "fboPivotYOffset": { "type": "number", "default": 92 },
         "faceFocusZ": { "type": "number", "default": 104.0 }
       }

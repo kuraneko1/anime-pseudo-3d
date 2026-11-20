@@ -4,7 +4,8 @@
 
 | File | Role |
 | :--- | :--- |
-| `engine/anime_stack_engine.js` | Character-agnostic, hot-reloadable WebGL 2-Pass renderer (`window.AnimeStackEngine.create`) |
+| `engine/anime_stack_engine.js` | Character-agnostic, hot-reloadable WebGL 2-Pass sprite-stack renderer (`window.AnimeStackEngine.create`) |
+| `engine/full3d_mesh_engine.js` | Character-agnostic hardware-Z-buffered Full-3D WebGL mesh renderer reusing `AnimeUIKit` (`window.Full3DMeshEngine.create`) |
 | `engine/anime_ui_kit.js` | Reusable 100% pixel-art UI component library (`window.AnimeUIKit`) supporting arbitrary-N animations |
 | `engine/anime_ui_theme.css` | Reusable 100% pixel-art studio theme (zero rounded corners, zero blur, Desktop + Mobile) |
 | `engine/ap3d_codec.js` | Zero-dependency browser `.ap3d` binary codec (`window.AP3DCodec`: encode, decode, download) |

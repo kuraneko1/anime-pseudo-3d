@@ -366,7 +366,23 @@
         m = max(m, texture2D(uFboTex, vUv + vec2( dd.x, -dd.y)).a);
         m = max(m, texture2D(uFboTex, vUv + vec2(-dd.x, -dd.y)).a);
 
-        float outA = smoothstep(0.18, 0.62, m);
+        float outA;
+        if (uCompMode == 3) {
+          // 16-direction circular ring + smooth feathering for jaggy-free SILKY 3D outlines even at 2.5x zoom
+          vec2 d1 = d * vec2(0.9238795, 0.3826834);
+          vec2 d2 = d * vec2(0.3826834, 0.9238795);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d1.x,  d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d1.x,  d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d1.x, -d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d1.x, -d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d2.x,  d2.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d2.x,  d2.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d2.x, -d2.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d2.x, -d2.y)).a);
+          outA = smoothstep(0.10, 0.78, m);
+        } else {
+          outA = smoothstep(0.18, 0.62, m);
+        }
         if (outA < 0.01) discard;
         vec3 outPremul = uOutCol * outA;
         gl_FragColor = vec4(fg.rgb + outPremul * (1.0 - fg.a), fg.a + outA * (1.0 - fg.a));
@@ -491,6 +507,7 @@
 
     let charVBO1x = null;
     let charVBO2x = null;
+    let charVBO4x = null;
     let charFbo = null;
     let CHAR_PIVOT_X = 98;
     let companionGpu = {};
@@ -658,8 +675,9 @@
     function disposeSceneGpu() {
       if (charVBO1x) gl.deleteBuffer(charVBO1x.buf);
       if (charVBO2x) gl.deleteBuffer(charVBO2x.buf);
+      if (charVBO4x) gl.deleteBuffer(charVBO4x.buf);
       disposeFbo(charFbo);
-      charVBO1x = null; charVBO2x = null; charFbo = null;
+      charVBO1x = null; charVBO2x = null; charVBO4x = null; charFbo = null;
 
       for (const cid of Object.keys(companionGpu)) {
         const cg = companionGpu[cid];
@@ -712,9 +730,11 @@
         ? Math.max(15, Math.min(90, Math.round(DEFAULTS.pitchDeg)))
         : Math.max(15, Math.min(90, Math.round((Math.asin(Math.max(0.25, Math.min(1.0, DEFAULTS.squash))) * 180) / Math.PI)));
 
+      const fboSS = Math.max(2, Math.min(4, Math.round(CHAR.fboSS || 2)));
       charVBO1x = buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 1);
       charVBO2x = buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 2);
-      charFbo = createFboTarget(CHAR.fboVirtW, CHAR.fboVirtH, 2);
+      charVBO4x = (fboSS >= 3) ? buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 4) : null;
+      charFbo = createFboTarget(CHAR.fboVirtW, CHAR.fboVirtH, fboSS);
       CHAR_PIVOT_X = charFbo.virtW * 0.5;
 
       for (const [cid, cdef] of Object.entries(COMPANION_DEFS)) {
@@ -1177,7 +1197,10 @@
       );
 
       if (atlasTex) {
-        const vbo = (zStep < 0.05 || state.spacing > 1.32) ? charVBO1x : charVBO2x;
+        let vbo = (zStep < 0.05 || state.spacing > 1.32) ? charVBO1x : charVBO2x;
+        if (state.renderMode === 3 && charVBO4x && zStep >= 0.05 && state.spacing <= 1.32) {
+          vbo = charVBO4x;
+        }
         renderStackToFbo(
           charFbo, vbo, atlasTex,
           CHAR.sliceW, CHAR.sliceH, CHAR.atlasCols, CHAR.atlasRows,
@@ -1565,6 +1588,32 @@
       triggerBounce: () => impulseSquash(0.84, 1.20),
       toggleFlag: (k) => { state[k] = !state[k]; notifyState(); },
       cycleTheme: () => { state.themeIdx = (state.themeIdx + 1) % THEMES.length; notifyState(); },
+
+      supportsAP3DLoad: () => Boolean(global.AP3DCodec),
+      getExportFormats: () => {
+        const fmts = [];
+        if (global.AP3DCodec) fmts.push({ id: "ap3d", label: ".AP3D" });
+        fmts.push({ id: "png", label: ".PNG" });
+        return fmts;
+      },
+
+      async exportPNG() {
+        const slug = String(CFG.title || "character").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "character";
+        const filename = slug + ".png";
+        const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+        if (!blob) throw new Error("Canvas PNG capture failed");
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return { filename, bytes: blob.size };
+      },
+
+      async exportByFormat(fmt) {
+        if (fmt === "png") return this.exportPNG();
+        return this.exportAP3D();
+      },
 
       async exportAP3D() {
         if (!global.AP3DCodec) throw new Error("AP3DCodec script not loaded");

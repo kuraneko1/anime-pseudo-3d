@@ -445,6 +445,9 @@ button {
   grid-template-columns: 1fr 1fr 1fr;
   gap: 5px;
 }
+.file-io-row.export-only {
+  grid-template-columns: 1fr;
+}
 .file-io-row .px-btn {
   min-height: 26px;
   padding: 3px 4px;

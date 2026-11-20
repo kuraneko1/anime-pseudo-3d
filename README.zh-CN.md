@@ -116,16 +116,16 @@
 
 ---
 
-## 四层解耦架构（多视图 3D 拼接 · 制作工具链 · `.ap3d` 格式 · 可复用 UI 与引擎）
+## 四层解耦架构（多视图蓝图测量 · 纯 GPU SDF 建模 · `.ap3d` 格式 · 可复用 UI 与引擎）
 
 ```mermaid
 flowchart LR
-  subgraph T1["toolkit/ (多视图 3D 拼接与 24FPS 制作管线)"]
-    MV["multiview_fitter.py (上下左右三视图分割·Z轴对齐·Visual Hull·6面无缝着色)"]
-    SDF["gpu_sdf.py (CuPy GPU / NumPy CPU 自动切换 SDF)"]
-    FACE["anime_face_kit.py (倾斜原画人脸投影与安全表情合成)"]
-    RIG["rig_contracts.py (FK + 3D IK 统一 PoseFrame 契约)"]
-    QA["qa_validator.py (越界裁切 / 循环接缝 / 轮廓 IoU QA)"]
+  subgraph T1["toolkit/ (多视图蓝图测量与纯 GPU SDF 24FPS 管线)"]
+    MV["multiview_fitter.py (连通域分割·Z轴对齐·调色板提取·轮廓 IoU QA · 禁止贴图直投)"]
+    SDF["gpu_sdf.py (CuPy GPU / NumPy CPU 纯 SDF · 三段法线赛璐璐 · 勒痕起伏)"]
+    FACE["anime_face_kit.py (纯 SDF 表情 / 无刘海人脸局部投影)"]
+    RIG["rig_contracts.py (FK + 3D IK 与物理联动 PoseFrame 契约)"]
+    QA["qa_validator.py (全帧越界检查 / 6 视角 3D QA 检视表)"]
     AP3D["ap3d_format.py (.ap3d 二进制 pack/unpack/merge)"]
   end
 
@@ -158,10 +158,11 @@ flowchart LR
 - **真 3D 正交俯仰与 4 种实时着色模式**：无角度量化连续 0.001° GPU 旋转 ＋ 真 3D 正交俯仰（`y = rot.y · sin θ − z · cos θ`，`PITCH 15°–90°`、默认 `20°`）＋ 2 倍交错子切片（320 层）＋ 4 种质感（`SMOOTH AA` / `PIXEL+AA` / `RETRO PX` / `SILKY 3D`）。
 - **多 3D 堆叠深度 Z 排序与声明式特效**：3D 环绕伙伴、头顶气泡与 3D 粒子全部由 JSON 声明驱动。
 
-### 2. 多视图 3D 拼接与动漫制作工具包（`toolkit/`）
-- **`multiview_fitter.py`（跨会话 3D 重建保障）**：对生成的 `FRONT / SIDE / BACK / TOP` 多视图使用边界漫水填充抠图（完好保留白色衬衫与眼白），自动测算解剖学 Z 轴标尺、构建 3D Visual Hull 并执行**法线加权 6 方向无缝着色**，同时输出正交轮廓 IoU 对比图（`qa_3d_fit_overlay.png`）确保任何新会话都不会 3D 化失败。
+### 2. 多视图蓝图测量与纯 GPU SDF 制作工具包（`toolkit/`）
+- **`multiview_fitter.py`（纯蓝图测量·禁止直接投影贴图）**：对生成的 `FRONT / SIDE / BACK / TOP` 多视图采用连通域分割、共享基线对齐与内部纯白空洞清除，提取精确坐标与干净赛璐璐调色板（`sample_clean_palette`），并输出正交轮廓 IoU 对比图（`qa_3d_fit_overlay.png`，目标 `≥ 72%`）。绝不将 2D 线稿三视图直接当作身体贴图投影，彻底杜绝发糊黑边！
+- **`full3d_mesh_kit.py` / `ap3d_to_full3d.py` / `engine/full3d_mesh_engine.js`（轻量真 3D 网格转换与 `.glb` 导出）**：完全复用同一套 `AnimeUIKit` 像素工作室 UI，既可将任意既有 `.ap3d` 一键转为超轻量硬件 Z 缓冲真 3D 单文件 HTML ＋ `.glb`，也可直接从 GPU SDF 提取 Surface Nets 平滑网格与外法线校验的 3D 绳管/球体，实现 60 FPS 全向（`-65°..+90°` 俯仰）实时展示。
 - **`ap3d_format.py`**：Python CLI 一键执行 `.ap3d` 的 `pack`、`unpack`、`inspect` 与 `merge`（无需重烘即可向已有角色追加新动作）。
-- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**：CuPy GPU / NumPy CPU 自动切换 SDF、倾斜原画人脸投影、FK/IK 统一 `PoseFrame`、越界防护与高质量 GIF 录制。
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**：CuPy GPU / NumPy CPU 纯 SDF（含 float32 NaN 防护 `safe_sin_pow`、3D 绳带 `sd_polyline`、勒痕膨出浮雕 `sdf_indent_bulge` 与三段法线赛璐璐着色）、无刘海局部人脸投影、FK/IK 统一 `PoseFrame`、全帧越界防护与高质量 GIF 录制。
 
 ---
 
@@ -182,10 +183,10 @@ anime-pseudo-3d/
 │   ├── bundle_standalone.py      # 单文件 HTML / .ap3d / 通用播放器打包脚本
 │   └── audit_pixel_build.py      # HTML + CSS + JS 像素纯净度静态审计工具
 ├── toolkit/
-│   ├── multiview_fitter.py       # 多视图自动分割、Z轴对齐、Visual Hull、6面无缝着色与 IoU QA
+│   ├── multiview_fitter.py       # 多视图连通域分割、Z轴对齐、调色板采样与轮廓 IoU QA
 │   ├── ap3d_format.py            # .ap3d 二进制 CLI (pack / unpack / inspect / merge)
-│   ├── gpu_sdf.py                # CuPy GPU / NumPy CPU 3D SDF 基础图元
-│   ├── anime_face_kit.py         # 倾斜人脸投影与表情合成助手
+│   ├── gpu_sdf.py                # CuPy GPU / NumPy CPU 纯 3D SDF 图元、NaN 防护与浮雕工具
+│   ├── anime_face_kit.py         # 无刘海倾斜人脸投影与表情合成助手
 │   ├── rig_contracts.py          # FK/IK 统一 PoseFrame 与周期动画曲线
 │   ├── pixel_fx_kit.py           # 像素特效精灵与 16x16 UI 图标
 │   ├── qa_validator.py           # 烘焙前数学 QA + 越界防护 + 3D QA 检视表
@@ -194,7 +195,7 @@ anime-pseudo-3d/
 │   ├── ap3d_player.html          # 轻量通用拖拽式 .ap3d 播放器 (约 116 KB)
 │   └── slime_chibi_demo/         # 端到端极简示例 (单文件 HTML + slime-chibi.ap3d)
 └── references/
-    ├── multiview_3d_reconstruction_guide.md  # 多视图生图提示词与无缝 3D 拼接指南
+    ├── multiview_3d_reconstruction_guide.md  # 多视图蓝图提示词与纯 SDF 轮廓 IoU QA 指南
     ├── anime_model_guide.md                  # 动漫风 3D 建模设计指南
     ├── animation_24fps_guide.md              # 24 FPS 骨骼绑定、IK 与节奏指南
     └── webgl_engine_guide.md                 # WebGL 引擎、AnimeUIKit 与 .ap3d API 手册

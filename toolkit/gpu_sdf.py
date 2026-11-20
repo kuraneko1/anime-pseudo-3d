@@ -1,7 +1,12 @@
 """Array-Backend-Agnostic 3D SDF Sculpting & 3-Step Anime Cel Shading (CuPy GPU + NumPy CPU Fallback).
 
-Automatically uses NVIDIA CuPy GPU acceleration (~40x faster for 160-slice anime models)
+Automatically uses NVIDIA CuPy GPU acceleration (~40x faster for 128-160 slice anime models)
 and falls back seamlessly to NumPy CPU when CuPy or a CUDA GPU is unavailable.
+
+Canonical Coordinate Convention:
+  - Volume array layout from `make_grid(W, L, H)`: shape `(H, L, W)` indexed `[z, y, x]`.
+  - `+X`: viewer-right in FRONT view | `+Y`: forward toward FRONT camera | `+Z`: upward.
+  - Use `vol_zyx_to_yxz(vol)` when passing `(H, L, W, 4)` volumes into `multiview_fitter.render_multiview_fit_qa`.
 """
 import math
 import os
@@ -27,13 +32,38 @@ def to_numpy(arr) -> np.ndarray:
     return np.asarray(arr)
 
 
+def vol_zyx_to_yxz(vol: np.ndarray) -> np.ndarray:
+    """Transpose canonical GPU SDF volume `(Z, Y, X, 4)` -> `(Y, X, Z, 4)` for multiview QA overlays."""
+    arr = to_numpy(vol)
+    if arr.ndim == 4:
+        return np.transpose(arr, (1, 2, 0, 3))
+    if arr.ndim == 3:
+        return np.transpose(arr, (1, 2, 0))
+    raise ValueError(f"Expected 3D or 4D volume, got shape {arr.shape}")
+
+
 def make_grid(W: int, L: int, H: int, y_offset: float = 0.0):
-    """Create canonical 3D voxel coordinate grids (X, Y, Z) with +Y forward and +Z up."""
+    """Create canonical 3D voxel coordinate grids (X, Y, Z) of shape `(H, L, W)` with +Y forward and +Z up."""
     zz, yy, xx = xp.mgrid[0:H, 0:L, 0:W].astype(xp.float32)
     X = xx - (W - 1) / 2.0
     Y = yy - (L - 1) / 2.0 - y_offset
     Z = zz + 0.5
     return X, Y, Z
+
+
+def safe_pow(base, exp: float):
+    """Float32 GPU-safe non-negative power (`max(0, base) ** exp`).
+
+    Prevents silent NaN geometry truncation when float32 rounding produces tiny negative values
+    such as `sin(pi) = -8.74e-8` raised to a fractional exponent!
+    """
+    return xp.maximum(0.0, base) ** exp
+
+
+def safe_sin_pow(t, exp: float):
+    """Float32 GPU-safe `max(0, sin(clamp(t, 0, 1) * pi)) ** exp` for smooth tapered body/limb profiles."""
+    tc = xp.clip(t, 0.0, 1.0)
+    return xp.maximum(0.0, xp.sin(tc * math.pi)) ** exp
 
 
 def smin(a, b, k: float):
@@ -123,6 +153,36 @@ def sd_chain(X, Y, Z, pts, k: float = 1.5, x_mirror: bool = False):
     joints = [(p[0], p[1], p[2]) for p in pts]
     radii = [p[3] for p in pts]
     return sd_bone_chain(px, Y, Z, joints, radii, smooth_k=k)
+
+
+def sd_polyline(X, Y, Z, pts, radius: float = 1.4):
+    """Build a crisp constant-radius 3D cord/strap/rope/ribbon tube along a polyline of `(x, y, z)` points."""
+    d = None
+    for i in range(len(pts) - 1):
+        ax, ay, az = pts[i]
+        bx, by, bz = pts[i + 1]
+        seg = sd_capsule(X, Y, Z, ax, ay, az, bx, by, bz, radius, radius)
+        d = seg if d is None else xp.minimum(d, seg)
+    return d
+
+
+def sdf_indent_bulge(
+    d_base,
+    d_strap,
+    cinch_depth: float = 2.4,
+    cinch_width: float = 2.7,
+    puff_amp: float = 1.6,
+    puff_start: float = 2.3,
+    puff_span: float = 3.6,
+    mask=1.0,
+):
+    """Sculpt realistic 3D surface indentation under tight cords/belts/straps + plump cushion bulge between them.
+
+    Transforms flat cylinders into tactile plush/fabric/anatomical 3D forms without any pasted 2D textures!
+    """
+    cinch = cinch_depth * xp.exp(-((d_strap / max(cinch_width, 1e-4)) ** 2))
+    puff = puff_amp * xp.clip((d_strap - puff_start) / max(puff_span, 1e-4), 0.0, 1.0)
+    return d_base + (cinch - puff) * mask
 
 
 def rot_inv_xyz(X, Y, Z, px: float, py: float, pz: float,

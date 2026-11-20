@@ -1,14 +1,21 @@
-"""Multi-View Orthographic Sheet Alignment, Visual Hull Blueprint & 6-View Seam-Free Color Joining.
+"""Multi-View Orthographic Sheet Blueprint Alignment, Palette Sampling & Silhouette IoU QA.
 
-Bridges generated multi-view 2D reference sheets (FRONT / SIDE / BACK / TOP / LEFT / RIGHT)
-into the canonical 3D sprite-stacking voxel grid (+X right, +Y forward, +Z up) so ANY fresh
-agent session can reconstruct consistent 3D proportions and seamlessly join all sides without
-hard seams or guessing anatomy heights.
+CANONICAL WORKFLOW PRINCIPLE (Pure GPU SDF Sculpting — ZERO Body Texture Pasting!):
+  Generated multi-view 2D turnaround sheets (`FRONT / SIDE / BACK / TOP`) are used STRICTLY as:
+    1. Exact geometric & anatomical coordinate blueprints (`split_multiview_sheet`, `align_and_measure_views`)
+    2. Clean flat cel-shading color palette references (`sample_clean_palette`)
+    3. Objective 3D-to-2D Silhouette IoU QA ground truth (`render_multiview_fit_qa`, target >= 72%)
+
+  NEVER paste/project generated turnaround images directly as 3D body/hair/clothing textures
+  (that bakes muddy 2D black lineart, flat lighting, and misaligned smudges into voxel slices).
+  Sculpt 100% of 3D volume, cavities, folds, hair locks, and accessories in GPU SDF (`toolkit/gpu_sdf.py`)
+  and shade with crisp 3-step normal cel shading (`shade_cel_3step`)!
 """
 from collections import deque
 import math
 import os
 from typing import Any
+import warnings
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -28,7 +35,7 @@ def _sample_border_bg(rgb: np.ndarray) -> np.ndarray:
 def remove_exterior_bg(img_rgb: np.ndarray, bg_tol: float = 28.0) -> np.ndarray:
     """Flood-fill exterior flat background from borders into alpha=0.
 
-    Unlike naive chroma-keying, interior white eyes, shirts, collars, and lace stay 100% intact!
+    Unlike naive chroma-keying, interior white eyes, shirts, collars, and cream plush stay intact!
     """
     h, w, _ = img_rgb.shape
     bg = _sample_border_bg(img_rgb)
@@ -66,16 +73,76 @@ def remove_exterior_bg(img_rgb: np.ndarray, bg_tol: float = 28.0) -> np.ndarray:
     return out
 
 
+def _label_components(mask: np.ndarray) -> tuple[np.ndarray, int]:
+    """Label 4-connected foreground components (uses scipy.ndimage if available, else fast pure-Python BFS)."""
+    try:
+        from scipy import ndimage
+        return ndimage.label(mask)
+    except Exception:
+        h, w = mask.shape
+        lbl = np.zeros((h, w), dtype=np.int32)
+        cid = 0
+        for y in range(h):
+            for x in range(w):
+                if mask[y, x] and lbl[y, x] == 0:
+                    cid += 1
+                    q: deque[tuple[int, int]] = deque([(y, x)])
+                    lbl[y, x] = cid
+                    while q:
+                        cy, cx = q.popleft()
+                        for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                            if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and lbl[ny, nx] == 0:
+                                lbl[ny, nx] = cid
+                                q.append((ny, nx))
+        return lbl, cid
+
+
+def clear_interior_white_holes(
+    rgba: np.ndarray,
+    white_thresh: int = 247,
+    max_y_ratio: float = 1.0,
+    min_area: int = 120,
+) -> np.ndarray:
+    """Punch out enclosed pure-white canvas pockets trapped between arms, legs, hair loops, or suspension ropes.
+
+    Restricts removal to near-pure `#FFFFFF` regions (`min(R,G,B) >= white_thresh`) of at least `min_area` pixels
+    inside the top `max_y_ratio` band so off-white shirts, cream plush bellies, and small eye glints stay intact!
+    """
+    out = rgba.copy()
+    h = out.shape[0]
+    y_lim = max(1, int(round(h * max_y_ratio)))
+    cand = (
+        (out[:, :, 3] > 128)
+        & (out[:, :, 0] >= white_thresh)
+        & (out[:, :, 1] >= white_thresh)
+        & (out[:, :, 2] >= white_thresh)
+    )
+    cand[y_lim:, :] = False
+    if not cand.any():
+        return out
+    lbl, n = _label_components(cand)
+    for cid in range(1, n + 1):
+        m = (lbl == cid)
+        if int(m.sum()) >= min_area:
+            out[m, 3] = 0
+    return out
+
+
 def split_multiview_sheet(
     sheet_path: str,
     view_names: tuple[str, ...] = ("front", "side", "back"),
-    bg_tol: float = 30.0,
-    min_width_ratio: float = 0.08,
+    bg_tol: float = 28.0,
+    min_area_ratio: float = 0.008,
     crop_top_text_ratio: float = 0.0,
+    preserve_shared_baseline: bool = True,
+    clear_upper_white_holes_ratio: float = 0.0,
+    white_hole_thresh: int = 247,
 ) -> dict[str, np.ndarray]:
-    """Split a horizontal multi-view turnaround sheet (e.g. FRONT | SIDE | BACK) into clean RGBA cutouts.
+    """Split a horizontal multi-view turnaround sheet (`FRONT | SIDE | BACK`) into clean RGBA cutouts.
 
-    Handles both cleanly separated panels and minor header labels cleanly.
+    Uses connected-component isolation (`scipy.ndimage.label` / BFS fallback) sorted left-to-right so
+    wide/close panels NEVER bleed or slice into neighboring panels, while preserving the exact shared
+    vertical baseline (`y_min_all..y_max_all`) across all views on the sheet!
     """
     im = Image.open(sheet_path).convert("RGB")
     arr = np.asarray(im)
@@ -85,8 +152,61 @@ def split_multiview_sheet(
     rgba = remove_exterior_bg(arr, bg_tol=bg_tol)
     fg = rgba[:, :, 3] > 128
     h, w = fg.shape
+    min_area = max(400, int(h * w * min_area_ratio))
 
-    # Project foreground onto X axis to find horizontal view spans
+    lbl, n_comp = _label_components(fg)
+    comps = []
+    for cid in range(1, n_comp + 1):
+        m = (lbl == cid)
+        area = int(m.sum())
+        if area < min_area:
+            continue
+        ys, xs = np.where(m)
+        comps.append({
+            "cx": float(xs.mean()),
+            "x0": int(xs.min()),
+            "x1": int(xs.max()),
+            "y0": int(ys.min()),
+            "y1": int(ys.max()),
+            "area": area,
+            "cid": cid,
+        })
+
+    # If a sheet had slightly more major components than view_names (e.g. detached floating prop/ahoge),
+    # pick the largest N components as main figures and merge any smaller components into the nearest panel!
+    if len(comps) >= len(view_names):
+        main_comps = sorted(comps, key=lambda c: c["area"], reverse=True)[: len(view_names)]
+        main_comps.sort(key=lambda c: c["cx"])
+
+        y_min_all = min(c["y0"] for c in main_comps)
+        y_max_all = max(c["y1"] for c in main_comps)
+        out: dict[str, np.ndarray] = {}
+        for name, comp in zip(view_names, main_comps):
+            x0, x1 = comp["x0"], comp["x1"]
+            y0 = y_min_all if preserve_shared_baseline else comp["y0"]
+            y1 = y_max_all if preserve_shared_baseline else comp["y1"]
+            sub = rgba[y0 : y1 + 1, x0 : x1 + 1].copy()
+            sub_m = (lbl[y0 : y1 + 1, x0 : x1 + 1] == comp["cid"])
+            # Also retain tiny nearby detached parts (like floating sparks/hair tips) inside this panel's bbox
+            # that do NOT belong to another main panel!
+            other_main = np.zeros_like(sub_m)
+            for oc in main_comps:
+                if oc["cid"] != comp["cid"]:
+                    other_main |= (lbl[y0 : y1 + 1, x0 : x1 + 1] == oc["cid"])
+            sub[other_main, 3] = 0
+            # Keep primary component + tiny non-other fragments cleanly
+            if not preserve_shared_baseline:
+                sub[~sub_m, 3] = 0
+            if clear_upper_white_holes_ratio > 0.0:
+                sub = clear_interior_white_holes(
+                    sub,
+                    white_thresh=white_hole_thresh,
+                    max_y_ratio=clear_upper_white_holes_ratio,
+                )
+            out[name] = sub
+        return out
+
+    # Fallback: column-projection spans (handles sheets where figures slightly touch)
     col_counts = fg.sum(axis=0)
     col_active = col_counts > max(3, int(h * 0.01))
     spans: list[tuple[int, int]] = []
@@ -97,49 +217,84 @@ def split_multiview_sheet(
             s0 = x
             in_span = True
         elif not col_active[x] and in_span:
-            if (x - s0) >= int(w * min_width_ratio):
+            if (x - s0) >= int(w * 0.08):
                 spans.append((s0, x))
             in_span = False
-    if in_span and (w - s0) >= int(w * min_width_ratio):
+    if in_span and (w - s0) >= int(w * 0.08):
         spans.append((s0, w))
 
-    # Fallback to equal horizontal slices if sheet figures slightly touch or extra text blocks appear
     if len(spans) != len(view_names):
         n = len(view_names)
         step = w / float(n)
         spans = [(int(round(i * step)), int(round((i + 1) * step))) for i in range(n)]
 
-    out: dict[str, np.ndarray] = {}
+    out = {}
+    ys_all, _ = np.where(fg)
+    y_min_all = int(ys_all.min()) if len(ys_all) else 0
+    y_max_all = int(ys_all.max()) if len(ys_all) else h - 1
     for name, (x0, x1) in zip(view_names, spans):
-        sub = rgba[:, x0:x1, :]
-        ys, xs = np.where(sub[:, :, 3] > 128)
-        if len(xs) == 0:
-            out[name] = sub
-            continue
-        # Drop isolated tiny header label rows separated from main figure by blank vertical gap
-        row_counts = (sub[:, :, 3] > 128).sum(axis=1)
-        y_top, y_bot = int(ys.min()), int(ys.max())
-        # Keep the largest contiguous vertical body block (eliminates "FRONT / SIDE / BACK" printed headers!)
-        blocks = []
-        b_in = False
-        b0 = 0
-        for y in range(sub.shape[0]):
-            if row_counts[y] > 2 and not b_in:
-                b0 = y
-                b_in = True
-            elif row_counts[y] <= 2 and b_in:
-                blocks.append((b0, y - 1, int(row_counts[b0:y].sum())))
-                b_in = False
-        if b_in:
-            blocks.append((b0, sub.shape[0] - 1, int(row_counts[b0:].sum())))
-        if blocks:
-            main_b = max(blocks, key=lambda b: b[2])
-            y_top, y_bot = main_b[0], main_b[1]
-        sub2 = sub[y_top : y_bot + 1, :, :]
-        ys2, xs2 = np.where(sub2[:, :, 3] > 128)
+        sub = rgba[y_min_all : y_max_all + 1, x0:x1, :].copy() if preserve_shared_baseline else rgba[:, x0:x1, :].copy()
+        ys2, xs2 = np.where(sub[:, :, 3] > 128)
         if len(xs2):
-            sub2 = sub2[:, int(xs2.min()) : int(xs2.max()) + 1, :]
-        out[name] = sub2
+            sub = sub[:, int(xs2.min()) : int(xs2.max()) + 1, :]
+            if not preserve_shared_baseline:
+                sub = sub[int(ys2.min()) : int(ys2.max()) + 1, :, :]
+        if clear_upper_white_holes_ratio > 0.0:
+            sub = clear_interior_white_holes(
+                sub,
+                white_thresh=white_hole_thresh,
+                max_y_ratio=clear_upper_white_holes_ratio,
+            )
+        out[name] = sub
+    return out
+
+
+def sample_clean_palette(
+    img_rgba: np.ndarray,
+    n_colors: int = 6,
+    exclude_dark_outline_lum: float = 48.0,
+) -> list[dict[str, Any]]:
+    """Sample clean flat cel-shading base RGB clusters from an aligned reference view (ignoring dark 2D outlines).
+
+    Use these clean RGB clusters to parameterize `gpu_sdf.shade_cel_3step(...)` rather than pasting raw
+    2D image pixels onto the 3D surface!
+    """
+    a = img_rgba[:, :, 3] > 128
+    rgb = img_rgba[:, :, :3].astype(np.float32)
+    lum = 0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]
+    fg = a & (lum >= exclude_dark_outline_lum)
+    if not fg.any():
+        return []
+
+    # Fast PIL median-cut quantization on outline-free foreground pixels
+    pts = rgb[fg].astype(np.uint8)
+    side = max(1, int(math.ceil(math.sqrt(len(pts)))))
+    pad = np.zeros((side * side, 3), dtype=np.uint8)
+    pad[: len(pts)] = pts
+    if len(pts) < side * side:
+        pad[len(pts) :] = pts[0]
+    q_im = Image.fromarray(pad.reshape(side, side, 3), "RGB").quantize(colors=max(2, n_colors), method=Image.Quantize.MEDIANCUT)
+    pal = np.asarray(q_im.getpalette()[: n_colors * 3], dtype=np.uint8).reshape(-1, 3)
+    idx = np.asarray(q_im).ravel()[: len(pts)]
+    counts = np.bincount(idx, minlength=len(pal))
+    order = np.argsort(-counts)
+
+    out = []
+    total = float(max(1, len(pts)))
+    for i in order:
+        if counts[i] <= 0:
+            continue
+        base = pal[i].astype(np.float32)
+        hi = np.clip(base * 1.18 + 14.0, 0, 255).astype(int).tolist()
+        sh = np.clip(base * 0.78 - 6.0, 0, 255).astype(int).tolist()
+        deep = np.clip(base * 0.56 - 10.0, 0, 255).astype(int).tolist()
+        out.append({
+            "ratio": round(float(counts[i]) / total, 3),
+            "base": base.astype(int).tolist(),
+            "hi": hi,
+            "sh": sh,
+            "deep": deep,
+        })
     return out
 
 
@@ -151,7 +306,7 @@ def _resize_rgba_to_canvas(
     anchor: str = "bottom",
     target_w: int | None = None,
 ) -> np.ndarray:
-    """Resize a tight RGBA cutout cleanly onto a centered canonical canvas."""
+    """Resize a clean RGBA cutout onto a centered canonical voxel canvas."""
     im = Image.fromarray(rgba, mode="RGBA")
     src_w, src_h = im.size
     if target_w is not None:
@@ -167,10 +322,7 @@ def _resize_rgba_to_canvas(
     resized = im.resize((nw, nh), Image.LANCZOS)
     canvas = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
     ox = (canvas_w - nw) // 2
-    if anchor == "bottom":
-        oy = canvas_h - nh
-    else:
-        oy = (canvas_h - nh) // 2
+    oy = (canvas_h - nh) if anchor == "bottom" else ((canvas_h - nh) // 2)
     canvas.paste(resized, (ox, oy), resized)
     return np.asarray(canvas)
 
@@ -182,19 +334,20 @@ def align_and_measure_views(
     z_height: int = 140,
     qa_out_path: str | None = None,
 ) -> dict[str, Any]:
-    """Align FRONT/BACK/SIDE/LEFT/RIGHT/TOP cutouts into unified voxel coordinates and extract Z-landmarks.
+    """Align FRONT/BACK/SIDE/LEFT/RIGHT/TOP cutouts into canonical voxel coordinates and measure landmarks + palette.
 
     Canonical conventions:
       - Standing orthographic views (`front`, `back`, `side`, `left`, `right`): shape `(grid_z, grid_xy, 4)`,
-        where row `grid_z - 1 - z` corresponds to voxel slice `z` (`z=0` at bottom soles, `z=z_height` at crown).
+        where row `grid_z - 1 - z` corresponds to voxel slice `z` (`z=0` at bottom, `z=z_height` at crown).
       - Overhead view (`top`, optional `bottom`): shape `(grid_xy, grid_xy, 4)`, aligned to `(front_width, side_depth)`.
+      - Use `grid_xy=112, grid_z=160, z_height=140` for tall humanoids, OR `grid_xy=128, grid_z=128, z_height=104`
+        for wide/horizontal mascots, creatures, or suspended props!
     """
     aligned: dict[str, np.ndarray] = {}
     standing_keys = [k for k in ("front", "back", "side", "left", "right") if k in views_rgba]
     for k in standing_keys:
         aligned[k] = _resize_rgba_to_canvas(views_rgba[k], grid_xy, grid_z, target_h=z_height, anchor="bottom")
 
-    # Measure X width from front (or back) and Y depth from side/left/right
     ref_front = aligned.get("front", aligned.get("back"))
     ref_side = aligned.get("side", aligned.get("left", aligned.get("right")))
 
@@ -226,20 +379,17 @@ def align_and_measure_views(
                 views_rgba[k], grid_xy, grid_xy, target_h=int(round(max_d)), target_w=int(round(max_w)), anchor="center"
             )
 
-    # Automatic anatomical Z-landmark detection from width profile wx(z)
     z_crown = int(np.where(has_x)[0].max()) if has_x.any() else z_height
     z_soles = int(np.where(has_x)[0].min()) if has_x.any() else 0
     span = max(1, z_crown - z_soles)
-    # Locate neck pinch (local minimum in width between 50% and 82% height)
     n_lo = z_soles + int(span * 0.48)
     n_hi = z_soles + int(span * 0.84)
     z_neck = int(n_lo + np.argmin(np.where(wx[n_lo:n_hi] > 1, wx[n_lo:n_hi], 9999))) if n_hi > n_lo else int(z_soles + span * 0.68)
-    # Head width & center above neck
-    head_slice = wx[z_neck:z_crown + 1]
+    head_slice = wx[z_neck : z_crown + 1]
     z_head_mid = int(z_neck + np.argmax(head_slice)) if len(head_slice) else int(z_soles + span * 0.82)
-    # Shoulder peak just below neck
     sh_lo = max(z_soles, z_neck - int(span * 0.20))
-    z_shoulders = int(sh_lo + np.argmax(wx[sh_lo:max(sh_lo + 1, z_neck)]))
+    z_shoulders = int(sh_lo + np.argmax(wx[sh_lo : max(sh_lo + 1, z_neck)]))
+
     landmarks = {
         "z_soles": z_soles,
         "z_knees": int(z_soles + span * 0.22),
@@ -257,6 +407,8 @@ def align_and_measure_views(
         "shoulder_width_x": round(float(wx[z_shoulders]), 1) if has_x.any() else 0.0,
     }
 
+    palette = sample_clean_palette(ref_front, n_colors=6) if ref_front is not None else []
+
     if qa_out_path:
         _save_alignment_qa(aligned, landmarks, grid_xy, grid_z, qa_out_path)
 
@@ -267,6 +419,7 @@ def align_and_measure_views(
         "center_x": cx,
         "center_y": cy,
         "landmarks": landmarks,
+        "palette": palette,
         "grid_xy": grid_xy,
         "grid_z": grid_z,
     }
@@ -315,44 +468,41 @@ def reconstruct_visual_hull(
     side_faces_right: bool = True,
     erode_px: int = 0,
 ) -> np.ndarray:
-    """Intersect orthographic multi-view silhouettes (FRONT ∩ BACK ∩ SIDE/LEFT/RIGHT ∩ TOP) into a 3D occupancy volume.
+    """[DEPRECATED FOR PRODUCTION CHARACTERS — DEBUG SILHOUETTE REFERENCE ONLY!]
 
-    Returns boolean numpy array of shape `(grid_xy, grid_xy, grid_z)` indexed `[y, x, z]` matching `gpu_sdf.make_grid`.
+    Visual hulls intersect silhouettes into boxy extruded blocks and cannot model concavities,
+    layered hair, open mouths, or animated limbs. Always sculpt production characters purely
+    with bone-driven GPU SDFs (`toolkit/gpu_sdf.py`) validated via `render_multiview_fit_qa`.
     """
+    warnings.warn(
+        "reconstruct_visual_hull() is debug-only and produces boxy artifacts. "
+        "Sculpt production 3D models with pure GPU SDFs (toolkit/gpu_sdf.py) guided by blueprint landmarks instead.",
+        UserWarning,
+        stacklevel=2,
+    )
     aligned = blueprint["aligned"]
     gw = int(blueprint["grid_xy"])
     gh = int(blueprint["grid_z"])
 
-    # Volume shape [H=Y, W=X, D=Z] matching make_grid(W, H, D)
     occ = np.ones((gw, gw, gh), dtype=bool)
-
-    # FRONT (+Y viewing toward -Y): image x -> voxel +x, image row (gh-1-z) -> voxel z
     if "front" in aligned:
-        m = (aligned["front"][:, :, 3] > 128)[::-1, :].T  # (X, Z)
+        m = (aligned["front"][:, :, 3] > 128)[::-1, :].T
         occ &= m[None, :, :]
-
-    # BACK (-Y viewing toward +Y): mirrored X horizontally relative to front
     if "back" in aligned:
         m_back = (aligned["back"][:, :, 3] > 128)[::-1, :]
         if flip_back_x:
             m_back = m_back[:, ::-1]
         occ &= m_back.T[None, :, :]
-
-    # SIDE / LEFT / RIGHT: image horizontal maps to voxel Y depth!
     side_img = aligned.get("side", aligned.get("left", aligned.get("right")))
     if side_img is not None:
-        m_side = (side_img[:, :, 3] > 128)[::-1, :]  # (Z, Y_img)
+        m_side = (side_img[:, :, 3] > 128)[::-1, :]
         if not side_faces_right:
             m_side = m_side[:, ::-1]
-        # m_side.T has shape (Y, Z) where larger Y = forward (+Y)
         occ &= m_side.T[:, None, :]
-
-    # TOP (+Z looking down): image x -> voxel x, image y -> voxel y
     if "top" in aligned:
-        m_top = aligned["top"][:, :, 3] > 128  # (Y, X)
+        m_top = aligned["top"][:, :, 3] > 128
         occ &= m_top[:, :, None]
 
-    # Simple optional 1-voxel erosion to trim anti-aliased fringe
     if erode_px > 0:
         for _ in range(erode_px):
             er = occ.copy()
@@ -361,7 +511,6 @@ def reconstruct_visual_hull(
                 occ[1:-1, :-2, 1:-1] & occ[1:-1, 2:, 1:-1]
             )
             occ = er
-
     return occ
 
 
@@ -373,23 +522,25 @@ def project_6view_colors(
     sharpness: float = 3.0,
     face_protect_mask: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Seam-free 6-view normal-weighted orthographic color projection onto any 3D occupancy volume.
+    """[DEPRECATED ANTI-PATTERN — DO NOT USE FOR PRODUCTION 3D CHARACTERS!]
 
-    Smoothly joins FRONT, BACK, LEFT/SIDE, RIGHT, TOP, and BOTTOM artwork colors across the 3D surface
-    using surface-normal directional weights (`max(0, dot(n, view_dir))^sharpness`), eliminating hard seams
-    while leaving `face_protect_mask` untouched for dedicated tilted anime face projection!
-
-    Returns uint8 RGBA volume `(Y, X, Z, 4)`.
+    Projecting generated 2D turnaround sheets onto 3D voxels bakes muddy 2D black lineart,
+    flat lighting, and seam smears into slices. Instead, use `sample_clean_palette()` +
+    procedural 3-step normal cel shading (`gpu_sdf.shade_cel_3step`) on pure GPU SDF geometry!
     """
+    warnings.warn(
+        "project_6view_colors() is deprecated: pasting 2D turnaround sheets onto 3D voxels bakes muddy 2D lineart "
+        "and ruins 360° quality. Use pure GPU SDF sculpting + procedural 3-step cel shading (`shade_cel_3step`) instead!",
+        UserWarning,
+        stacklevel=2,
+    )
     aligned = blueprint["aligned"]
     gy, gx, gz = occ.shape
 
-    # Estimate outward surface normals directly from binary occupancy via central finite differences
     f_occ = occ.astype(np.float32)
     ny = np.zeros_like(f_occ)
     nx = np.zeros_like(f_occ)
     nz = np.zeros_like(f_occ)
-    # Outward normal points from occupied(1) -> empty(0), i.e., -grad(occ)
     ny[1:-1, :, :] = f_occ[:-2, :, :] - f_occ[2:, :, :]
     nx[:, 1:-1, :] = f_occ[:, :-2, :] - f_occ[:, 2:, :]
     nz[:, :, 1:-1] = f_occ[:, :, :-2] - f_occ[:, :, 2:]
@@ -426,12 +577,8 @@ def project_6view_colors(
         acc_w[:] += w
 
     z_row = (gz - 1) - zs
-
-    # FRONT (+Y)
     add_view("front", xs, z_row, vy)
-    # BACK (-Y)
     add_view("back", (gx - 1 - xs) if flip_back_x else xs, z_row, -vy)
-    # RIGHT / SIDE (+X) and LEFT (-X)
     if "right" in aligned or "left" in aligned:
         y_u_r = ys if side_faces_right else (gy - 1 - ys)
         y_u_l = (gy - 1 - ys) if side_faces_right else ys
@@ -442,11 +589,9 @@ def project_6view_colors(
     elif "side" in aligned:
         y_u = ys if side_faces_right else (gy - 1 - ys)
         add_view("side", y_u, z_row, np.abs(vx))
-    # TOP (+Z) and BOTTOM (-Z)
     add_view("top", xs, ys, vz)
     add_view("bottom", xs, gy - 1 - ys, -vz)
 
-    # Fallback color for completely interior voxels (use front/median non-zero color)
     fallback = np.array([128.0, 148.0, 188.0], dtype=np.float32)
     has_c = acc_w > 1e-6
     rgb_out = np.empty((len(xs), 3), dtype=np.uint8)
@@ -459,9 +604,6 @@ def project_6view_colors(
     vol = np.zeros((gy, gx, gz, 4), dtype=np.uint8)
     vol[ys, xs, zs, :3] = rgb_out
     vol[ys, xs, zs, 3] = 255
-    if face_protect_mask is not None:
-        # Leave protected face alpha=255 so caller can composite tilted anime face cleanly
-        pass
     return vol
 
 
@@ -471,31 +613,50 @@ def render_multiview_fit_qa(
     out_path: str,
     flip_back_x: bool = True,
     side_faces_right: bool = True,
+    input_order: str = "auto",
 ) -> dict[str, float]:
-    """Compare sculpted 3D voxel volume against aligned reference views and save a visual QA overlay.
+    """Compare a sculpted 3D SDF voxel volume against aligned orthographic blueprint views and save a QA sheet.
 
-    Computes 2D Silhouette IoU for FRONT, SIDE, BACK, and TOP and writes a 2-row QA image:
-      Row 1: Reference views
-      Row 2: Sculpted 3D orthographic renders + IoU score badge
+    Supports both `gpu_sdf.make_grid` layout `(Z, Y, X, 4)` (`input_order="zyx"` or `"auto"`)
+    and `(Y, X, Z, 4)` (`input_order="yxz"`).
+
+    Camera view mapping for standing keys:
+      - `front`: looks from +Y toward -Y
+      - `back`:  looks from -Y toward +Y (mirrored X when `flip_back_x=True`)
+      - `right` / `side`: looks from +X toward -X
+      - `left`:  looks from -X toward +X (ideal for head-on view of horizontal subjects facing -X!)
+      - `top`:   looks from +Z downward
     """
     aligned = blueprint["aligned"]
-    gy, gx, gz, _ = vol_rgba.shape
-    occ = vol_rgba[:, :, :, 3] > 128
+    bp_xy = int(blueprint["grid_xy"])
+    bp_z = int(blueprint["grid_z"])
+
+    if input_order == "zyx":
+        vol_yxz = np.transpose(vol_rgba, (1, 2, 0, 3))
+    elif input_order == "yxz":
+        vol_yxz = vol_rgba
+    else:
+        # Auto-detect (Z, Y, X, 4) vs (Y, X, Z, 4) whenever grid_z != grid_xy
+        if vol_rgba.shape[0] == bp_z and vol_rgba.shape[2] == bp_xy and bp_z != bp_xy:
+            vol_yxz = np.transpose(vol_rgba, (1, 2, 0, 3))
+        else:
+            vol_yxz = vol_rgba
+
+    gy, gx, gz, _ = vol_yxz.shape
 
     def ortho_render(axis: str) -> np.ndarray:
         if axis == "front":
-            # Look from +Y toward -Y (largest y wins)
             img = np.zeros((gz, gx, 4), dtype=np.uint8)
             for y in range(gy):
-                sl = vol_rgba[y, :, :, :]  # (X, Z, 4)
-                sl_t = np.transpose(sl, (1, 0, 2))[::-1, :, :]  # (Z_img, X, 4)
+                sl = vol_yxz[y, :, :, :]
+                sl_t = np.transpose(sl, (1, 0, 2))[::-1, :, :]
                 m = sl_t[:, :, 3] > 128
                 img[m] = sl_t[m]
             return img
         if axis == "back":
             img = np.zeros((gz, gx, 4), dtype=np.uint8)
             for y in range(gy - 1, -1, -1):
-                sl = vol_rgba[y, :, :, :]
+                sl = vol_yxz[y, :, :, :]
                 sl_t = np.transpose(sl, (1, 0, 2))[::-1, :, :]
                 if flip_back_x:
                     sl_t = sl_t[:, ::-1, :]
@@ -506,17 +667,16 @@ def render_multiview_fit_qa(
             img = np.zeros((gz, gy, 4), dtype=np.uint8)
             rng = range(gx) if axis != "left" else range(gx - 1, -1, -1)
             for x in rng:
-                sl = vol_rgba[:, x, :, :]  # (Y, Z, 4)
+                sl = vol_yxz[:, x, :, :]
                 sl_t = np.transpose(sl, (1, 0, 2))[::-1, :, :]
                 if not side_faces_right:
                     sl_t = sl_t[:, ::-1, :]
                 m = sl_t[:, :, 3] > 128
                 img[m] = sl_t[m]
             return img
-        # top (+Z looking down)
         img = np.zeros((gy, gx, 4), dtype=np.uint8)
         for z in range(gz):
-            sl = vol_rgba[:, :, z, :]
+            sl = vol_yxz[:, :, z, :]
             m = sl[:, :, 3] > 128
             img[m] = sl[m]
         return img
