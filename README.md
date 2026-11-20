@@ -62,11 +62,11 @@
   <img src="assets/render_styles_compare.png" alt="4 Render Modes: SMOOTH AA / PIXEL+AA / RETRO PX / SILKY 3D" width="860" />
 </p>
 
-### 3. リアルタイム視点ピッチ（SQUASH）＆ 3 スタジオテーマ
-160 枚の 2D スライス層を GPU 上で連続回転・2 倍インターリーブ補間（計 320 層）することで、アイレベル寄りのアニメ視点（`0.35`）から 3/4 アイソメトリック・真上トップダウン視点（`1.00`）までシームレスに連続変化。3 種類の背景テーマも即時切替できます。
+### 3. 真の 3D 正射影ピッチ（`PITCH 15°〜90°`）＆ 3 スタジオテーマ
+160 枚の 2D スライス層を GPU 上で連続回転し、**真の 3D 正射影（`y = rot.y · sin(θ) − z · cos(θ)`）** と 2 倍インターリーブ補間（計 320 層）で投影。アイレベル寄りのアニメ視点（`20°`）から 3/4 アイソメトリック（`48°`）、真上トップダウン視点（`90°`）までボディが伸びずに自然な立体感を維持します。
 
 <p align="center">
-  <img src="assets/camera_themes_demo.png" alt="Camera Pitch (SQUASH 0.35 / 0.68 / 1.00) & 3 Themes (ICE LAB / DEEP SEA / MIDNIGHT)" width="820" />
+  <img src="assets/camera_themes_demo.png" alt="True 3D Orthographic Camera Pitch (20° / 48° / 90°) & 3 Themes (ICE LAB / MIDNIGHT / DEEP SEA)" width="820" />
 </p>
 
 ### 4. 本エンジン採用ショーケース（[kuraneko1/deepseek-chan-3d](https://github.com/kuraneko1/deepseek-chan-3d)）
@@ -156,7 +156,7 @@ flowchart LR
   - `PIXEL+AA`: 正方形ドット粒感＋滑らか境界 AA（`DOT SIZE` 調整対応）
   - `RETRO PX`: ハードエッジドット＋4 方向階段輪郭＋カラー量子化
   - `SILKY 3D`: フィギュア風の滑らかバイリニア補間
-- **アニメ映え初期設定**: `SQUASH 0.35`（アイレベル寄り正面視点）・`ICE LAB`（明るいスタジオ背景）・`SMOOTH AA` を標準設定。
+- **アニメ映え初期設定 & 真の 3D 俯瞰投影**: `PITCH 20°`（`sin θ ≈ 0.35`・`cos θ` による正確な Z 短縮投影）・`ICE LAB`（明るいスタジオ背景）・`SMOOTH AA` を標準設定。
 - **複数 3D スタック前後 Z ソート**: 主役キャラの周囲を泳ぐ 3D 相棒モデル（第 2 FBO）や 3D パーティクルを、カメラ角度に応じて自動でキャラの後ろ／前面へ正確に前後ソート。
 - **宣言的 `motion_pack.json`**: モーション一覧・3D 相棒軌道・吹き出しオーバーレイ・3D パーティクル（`sparkle_perimeter` / `orbit_trail` / `burst_above` / `forward_slash_fan` / `helix_vortex` / `floor_wave_rings`）を JSON で定義するだけでエンジン無改造で動作。
 - **24 コマ・バレットタイムタイムライン**: 一時停止＆スクラブしながら 360° 回転させて攻撃エフェクトや 3D 相棒を観察可能。

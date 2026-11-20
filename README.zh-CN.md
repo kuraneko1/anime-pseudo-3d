@@ -62,11 +62,11 @@
   <img src="assets/render_styles_compare.png" alt="4 种着色模式：SMOOTH AA / PIXEL+AA / RETRO PX / SILKY 3D" width="860" />
 </p>
 
-### 3. 实时俯仰视角（`SQUASH`）与 3 套棚拍主题
-160 张 2D 切片在 GPU 上连续旋转并叠加 2 倍交错子切片插值（等效 320 层），支持从贴近平视的二次元视角（`0.35`）、经典 3/4 等距视角到正上方俯视（`1.00`）丝滑过渡，并内置三套棚拍主题一键切换。
+### 3. 真 3D 正交俯仰角（`PITCH 15°–90°`）与 3 套棚拍主题
+160 张 2D 切片在 GPU 上连续旋转，采用**真 3D 正交投影（`y = rot.y · sin θ − z · cos θ`）**并叠加 2 倍交错子切片插值（等效 320 层），从平视二次元视角（`20°`）、3/4 等距视角（`48°`）到正上方俯视（`90°`）丝滑过渡且彻底杜绝身体拉伸变形。
 
 <p align="center">
-  <img src="assets/camera_themes_demo.png" alt="视角俯仰 (SQUASH 0.35 / 0.68 / 1.00) 与 3 套主题 (ICE LAB / DEEP SEA / MIDNIGHT)" width="820" />
+  <img src="assets/camera_themes_demo.png" alt="真 3D 正交俯仰视角 (20° / 48° / 90°) 与 3 套主题 (ICE LAB / MIDNIGHT / DEEP SEA)" width="820" />
 </p>
 
 ### 4. 本引擎实装代表作（[kuraneko1/deepseek-chan-3d](https://github.com/kuraneko1/deepseek-chan-3d/blob/main/README.zh-CN.md)）
@@ -156,7 +156,7 @@ flowchart LR
   - `PIXEL+AA`：保留方形像素颗粒感并叠加顺滑边缘抗锯齿（支持自由调节 `DOT SIZE`）。
   - `RETRO PX`：经典硬边像素 ＋ 四向阶梯描边 ＋ 复古色阶量化。
   - `SILKY 3D`：双线性柔滑手办质感。
-- **二次元出片默认参数**：开箱即设为 `SQUASH 0.35`（贴近平视正面视角）、`ICE LAB` 明亮棚拍背景与 `SMOOTH AA`。
+- **二次元出片默认参数与真 3D 俯仰投影**：开箱即设为 `PITCH 20°`（`sin θ ≈ 0.35`，配精确 `cos θ` 纵轴透视缩短）、`ICE LAB` 明亮棚拍背景与 `SMOOTH AA`。
 - **多 3D 堆叠前后深度 Z 排序**：自动依据当前相机角度将环绕角色的 3D 伙伴模型（独立 FBO）与 3D 粒子精准排序至角色身前或身后。
 - **声明式 `motion_pack.json`**：动作列表、3D 伙伴环绕轨道、头顶思考气泡、3D 粒子发射器（`sparkle_perimeter` / `orbit_trail` / `burst_above` / `forward_slash_fan` / `helix_vortex` / `floor_wave_rings`）全部通过 JSON 配置，无需改动引擎代码。
 - **24 帧「子弹时间」时间轴**：支持暂停并拖动任意单帧，同时 360° 环绕观察刀光、冲击波与 3D 伙伴细节。

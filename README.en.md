@@ -62,11 +62,11 @@ Switch instantaneously between silky anime anti-aliasing, chunky pixel grain, cl
   <img src="assets/render_styles_compare.png" alt="4 Render Modes: SMOOTH AA / PIXEL+AA / RETRO PX / SILKY 3D" width="860" />
 </p>
 
-### 3. Real-Time Camera Elevation (`SQUASH`) & 3 Studio Themes
-160 stacked 2D slice textures rotate continuously on the GPU with 2× interleaved sub-slice interpolation (320 effective layers), letting you glide seamlessly from eye-level anime view (`0.35`) through isometric 3/4 to true overhead top-down (`1.00`) across 3 studio themes.
+### 3. True 3D Orthographic Pitch (`15°–90°`) & 3 Studio Themes
+160 stacked 2D slice textures rotate continuously on the GPU with **true 3D orthographic elevation (`y = rot.y · sin θ − z · cos θ`)** and 2× interleaved sub-slice interpolation (320 effective layers)—gliding smoothly from eye-level anime view (`20°`) through 3/4 isometric (`48°`) to true top-down (`90°`) with zero vertical body distortion.
 
 <p align="center">
-  <img src="assets/camera_themes_demo.png" alt="Camera Pitch (SQUASH 0.35 / 0.68 / 1.00) & 3 Themes (ICE LAB / DEEP SEA / MIDNIGHT)" width="820" />
+  <img src="assets/camera_themes_demo.png" alt="True 3D Orthographic Camera Pitch (20° / 48° / 90°) & 3 Themes (ICE LAB / MIDNIGHT / DEEP SEA)" width="820" />
 </p>
 
 ### 4. Flagship Showcase Built with This Engine ([kuraneko1/deepseek-chan-3d](https://github.com/kuraneko1/deepseek-chan-3d/blob/main/README.en.md))
@@ -156,7 +156,7 @@ flowchart LR
   - `PIXEL+AA`: Crisp square pixel dots with smooth antialiased outer edges (adjustable `DOT SIZE`).
   - `RETRO PX`: Classic hard-edge pixels + 4-way stepped pixel outline + retro color quantization.
   - `SILKY 3D`: Smooth bilinear figurine-style surface rendering.
-- **Anime-Ready Defaults**: Ships tuned out of the box with `SQUASH 0.35` (eye-level front angle), `ICE LAB` studio theme, and `SMOOTH AA`.
+- **Anime-Ready Defaults & True 3D Elevation**: Ships tuned with `PITCH 20°` (`sin θ ≈ 0.35` with exact `cos θ` vertical foreshortening), `ICE LAB` studio theme, and `SMOOTH AA`.
 - **Multi-Stack 3D Depth Z-Sorting**: Automatically sorts orbiting 3D companion models (rendered to a second FBO) and 3D particle emitters cleanly behind or in front of the hero character at every camera angle.
 - **Declarative `motion_pack.json`**: Define motions, orbiting 3D companions, overhead thought-bubble memes, and 3D particle emitters (`sparkle_perimeter`, `orbit_trail`, `burst_above`, `forward_slash_fan`, `helix_vortex`, `floor_wave_rings`) purely in JSON—no engine JS modifications required.
 - **24-Frame Bullet-Time Timeline**: Pause and scrub any frame while orbiting 360° around slashes, shockwaves, and 3D companions.
