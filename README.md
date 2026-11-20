@@ -160,9 +160,8 @@ flowchart LR
 
 ### 2. 多面図ブループリント計測 ＆ 純粋 GPU SDF 制作ツールキット（`toolkit/`）
 - **`multiview_fitter.py`（ブループリント専用・テクスチャ直貼り禁止設計）**: 画像生成で作った `FRONT / SIDE / BACK / TOP` 三面図シートを連結成分ベースで安全分割し、共通ベースライン整列・囲まれ白抜き穴除去・クリーンなセル塗りパレット抽出（`sample_clean_palette`）・シルエット IoU 自動 QA（`qa_3d_fit_overlay.png`、目標 `≥ 72%`）を実行。2D 線画が滲む**画像テクスチャ直貼りは行わず**、純粋な 3D SDF 造形の設計図・検査基準として活用します。
-- **`full3d_mesh_kit.py` / `ap3d_to_full3d.py` / `engine/full3d_mesh_engine.js`（軽量・完全 3D ポリゴン変換＆`.glb` 出力）**: 同じ `AnimeUIKit` UI を完全流用したまま、既存 `.ap3d` をコマンド 1 本で軽量フル 3D HTML＋Blender/Unity 用 `.glb` へ変換可能。さらに SDF 造形から直接 Surface Nets＋法線外向き検証済み 3D チューブ／球／歯メッシュを抽出し、60 FPS・上下 `-65°〜+90°` 自由視点の完全 3D ビューアも構築できます。
 - **`ap3d_format.py`**: Python CLI で `.ap3d` の `pack` / `unpack` / `inspect` / `merge`（既存キャラへ新モーションを再ベイクなしで結合）に対応。
-- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: CuPy GPU / NumPy CPU 自動切替 SDF（float32 NaN 防止 `safe_sin_pow`・3D 縄/帯 `sd_polyline`・食い込み＆膨らみ造形 `sdf_indent_bulge`・3 段法線セル陰影）、FK/IK ＆ 物理連動リグ、全フレーム境界クリッピング検査＆最適化 GIF 録画。
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: CuPy GPU / NumPy CPU 自動切替 SDF（float32 NaN 防止 `safe_sin_pow`・小顎もち頬ヘッド造形 `sd_anime_head`・3D 縄/帯 `sd_polyline`・食い込み＆膨らみ造形 `sdf_indent_bulge`・3 段法線セル陰影）、FK/IK ＆ 物理連動リグ、全フレーム境界クリッピング検査＆最適化 GIF 録画。
 
 ---
 

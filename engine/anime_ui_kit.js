@@ -725,7 +725,7 @@
       panel.appendChild(sec);
     }
 
-    // 6. Portable Package (.ap3d) Load / Merge & Selectable Format Export (.ap3d / .glb / .png)
+    // 6. Portable Package (.ap3d) Load / Merge & Selectable Format Export (.ap3d / .png)
     let fileIO = null;
     if (opts.showFileIO) {
       fileIO = createFileIOControls({

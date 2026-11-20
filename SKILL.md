@@ -17,10 +17,9 @@ description: >-
 Create crisp, 360°-rotatable, **24-FPS anime-style pseudo-3D characters & mascots** from reference images using a strictly decoupled **4-Layer Architecture** and **Pure GPU SDF Sculpting**:
 
 1. **Multi-View Blueprint & Silhouette IoU QA Layer** ([toolkit/multiview_fitter.py](./toolkit/multiview_fitter.py), [references/multiview_3d_reconstruction_guide.md](./references/multiview_3d_reconstruction_guide.md)): Connected-component splitting of generated `FRONT / SIDE / BACK / TOP` orthographic sheets with shared baseline preservation & interior white-hole clearing, exact anatomical coordinate & clean cel-palette extraction, and objective 3D-to-2D Silhouette IoU QA overlays (`>= 72%`). **Turnaround sheets are blueprints & QA rulers ONLY — never pasted as 3D body textures!**
-2. **Pure GPU SDF Sculpting & 24-FPS Physics Rigging Toolkit** ([toolkit/gpu_sdf.py](./toolkit/gpu_sdf.py), [toolkit/anime_face_kit.py](./toolkit/anime_face_kit.py), [toolkit/rig_contracts.py](./toolkit/rig_contracts.py), [toolkit/pixel_fx_kit.py](./toolkit/pixel_fx_kit.py), [toolkit/qa_validator.py](./toolkit/qa_validator.py), [toolkit/record_gif.py](./toolkit/record_gif.py)): CuPy GPU / NumPy CPU SDF primitives with float32 NaN guards (`safe_sin_pow`), 3D polylines (`sd_polyline`), strap/cloth indentation + cushion bulge relief (`sdf_indent_bulge`), crisp 3-step normal cel shading (`shade_cel_3step`) + SDF AO, unified FK/IK & physics-coupled `PoseFrame` rigging, and zero-clipping QA.
-3. **Portable `.ap3d` Binary Format & Optional Full-3D Mesh / `.glb` Export** ([toolkit/ap3d_format.py](./toolkit/ap3d_format.py), [engine/ap3d_codec.js](./engine/ap3d_codec.js), [toolkit/full3d_mesh_kit.py](./toolkit/full3d_mesh_kit.py), [toolkit/ap3d_to_full3d.py](./toolkit/ap3d_to_full3d.py), [engine/full3d_mesh_engine.js](./engine/full3d_mesh_engine.js)):
-   - Zero-dependency `.ap3d` binary container (`AP3D` v1) for sprite-stacking (~33% smaller than base64) with live browser Load / `+MOTION` Merge / Export & Drag-and-Drop.
-   - **Dual-Target Full-3D Mesh & `.glb` Pipeline**: Export ultra-lightweight (~5×–10× smaller), hardware-Z-buffered 60-FPS Full-3D polygon viewers reusing `AnimeUIKit` + `anime_ui_theme.css` unmodified — either (a) directly from GPU SDF parts (`toolkit/full3d_mesh_kit.py`: Surface Nets + outward-verified tubes/spheres/teeth + camera-aligned studio cel shading) OR (b) in 1 command from any existing `.ap3d` via `toolkit/ap3d_to_full3d.py`!
+2. **Pure GPU SDF Sculpting & 24-FPS Physics Rigging Toolkit** ([toolkit/gpu_sdf.py](./toolkit/gpu_sdf.py), [toolkit/anime_face_kit.py](./toolkit/anime_face_kit.py), [toolkit/rig_contracts.py](./toolkit/rig_contracts.py), [toolkit/pixel_fx_kit.py](./toolkit/pixel_fx_kit.py), [toolkit/qa_validator.py](./toolkit/qa_validator.py), [toolkit/record_gif.py](./toolkit/record_gif.py)): CuPy GPU / NumPy CPU SDF primitives with float32 NaN guards (`safe_sin_pow`), tucked-chin anime/chibi faceline sculpting (`sd_anime_head`), 3D polylines (`sd_polyline`), strap/cloth indentation + cushion bulge relief (`sdf_indent_bulge`), crisp 3-step normal cel shading (`shade_cel_3step`) + SDF AO, unified FK/IK & physics-coupled `PoseFrame` rigging, and zero-clipping QA.
+3. **Portable `.ap3d` Binary Format** ([toolkit/ap3d_format.py](./toolkit/ap3d_format.py), [engine/ap3d_codec.js](./engine/ap3d_codec.js)):
+   - Zero-dependency `.ap3d` binary container (`AP3D` v1) for sprite-stacking (~33% smaller than base64) with live browser `LOAD` / `+MOTION` Merge / `EXPORT` (`.AP3D` | `.PNG`) & Drag-and-Drop.
 4. **Character-Agnostic WebGL 2-Pass Engine & Reusable Pixel UI Kit** ([engine/anime_stack_engine.js](./engine/anime_stack_engine.js), [engine/anime_ui_kit.js](./engine/anime_ui_kit.js), [engine/anime_ui_theme.css](./engine/anime_ui_theme.css), [engine/viewer_shell.html](./engine/viewer_shell.html), [engine/bundle_standalone.py](./engine/bundle_standalone.py)):
    - **True 3D Orthographic Elevation**: `y = rot.y * sin(pitch) - z * cos(pitch) * spacing` (`PITCH 15°–90°`, default `20°`, zero vertical stretching, pitch-invariant camera scale).
    - **Reusable Modular UI (`AnimeUIKit`)**: Works with **ANY number of animations** (`1` static model, `2`, `6`, `9`, `24`, `50+`) via dynamic grid layout, scrollable pixel motion shelf, optional category filter tabs (`motion.category`), `PREV / NEXT` (`[` / `]`), and hot-reloadable runtime API (`engine.loadScene(...)`, `engine.addMotions(...)`).
@@ -69,12 +68,13 @@ Read the relevant reference guides before authoring:
 ### Stage 3: Pure Parametric GPU SDF Sculpting + Multi-View Silhouette IoU Gate (BEFORE Baking Animations!)
 1. Build **100% pure bone-driven GPU SDF geometry** (`toolkit/gpu_sdf.py`) matching the exact coordinates measured in Stage 2:
    - Guard all fractional powers with `safe_pow` / `safe_sin_pow` (prevents float32 GPU `sin(pi) = -8.7e-8 -> NaN` geometry chops!).
+   - **Tucked-Chin Anime/Chibi Faceline**: For humanoids & chibis, sculpt the head with **`sd_anime_head(...)`** (rearward-aligned mochi cheeks + `-Y` tucked jaw + `smax` tilted chin bevel + luminous soft peach skin shading with `ao * 0.25`) — NEVER place chin/cheek ellipsoids forward (`+Y`) ahead of the cranium!
    - Carve real 3D cavities (`smax(d_body, -d_cavity, k)`), sculpt protruding 3D accessories/straps/knots/teeth/hair locks (`sd_polyline`, `sd_bone_chain`), and add tactile surface micro-relief (`sdf_indent_bulge` for tight ropes/belts/collars digging into soft plush/cloth + cushion bulges!).
    - Shade every material with crisp **3-step normal cel shading (`shade_cel_3step`) + SDF ambient occlusion (`ao`)** using the sampled blueprint palette. **NEVER call `project_6view_colors` or bake 2D black outlines into slices!**
 2. **Visual Gate 3 (Mandatory Iteration Gate!)**:
    - Run `render_multiview_fit_qa(vol_neutral, bp, "qa/qa_3d_fit_overlay.png", input_order="zyx")` (map head-on view to `"left"` if subject faces `-X`, or `"side"`/`"right"` if facing `+X`) and verify **Silhouette IoU ≥ 72%** across all views.
-   - Render a 6-angle 3D turntable check (`render_animation_sheet([vol_view], "qa/qa_turntable_neutral.png", angles_deg=(0, 24, 60, 90, 150, 180))`).
-   - Inspect BOTH images with `read_file` and fix every single symmetry, cavity, proportion, or NaN defect BEFORE baking a single animation frame!
+   - Render a 6-angle 3D turntable check (`render_animation_sheet([vol_view], "qa/qa_turntable_neutral.png", angles_deg=(0, 24, 60, 90, 150, 180))`), AND for anime/chibi humanoids render a **zoomed 5-angle head/faceline profile check** (`angles_deg=(0, 22, 45, 68, 90)`, `scale=3`) to catch any chin protrusion or jaw shadow BEFORE baking!
+   - Inspect ALL Stage 3 QA images with `read_file` and fix every single symmetry, faceline, cavity, proportion, or NaN defect BEFORE baking a single animation frame!
 
 ### Stage 4: Author Arbitrary-N Physics-Coupled 24-FPS Motions & Bake
 1. Author seamless periodic 24-FPS motions (`frame 23 -> frame 0` zero seam) with:
@@ -101,23 +101,6 @@ Read the relevant reference guides before authoring:
      --export-ap3d dist/your-char.ap3d \
      --out dist/your-char-standalone.html
    ```
-
-### Optional Stage 5B: Lightweight Full-3D Polygon Mesh Viewer & Non-Conflicting Export Format Selection
-Both **Sprite-Stack (`.ap3d`)** and **Full-3D (`.glb`)** outputs coexist cleanly without overwriting or conflicting with each other (`*-standalone.html` + `*.ap3d` vs `*-full3d.html` + `*.glb`), and **`AnimeUIKit` automatically offers pixel-art Export Format Selector pills** tailored to each engine:
-- **Sprite-Stack viewers (`anime_stack_engine.js`)**: preserves `.AP3D` `LOAD` / `+MOTION` / `EXPORT` + Drag-and-Drop 100% intact, with selectable **`.AP3D`** | **`.PNG`** export pills.
-- **Full-3D viewers (`full3d_mesh_engine.js`)**: enables live in-browser zero-dependency glTF 2.0 export with selectable **`.GLB (3D)`** | **`.GLB+PET`** | **`.PNG`** pills.
-
-1. **Path 1 — 1-Command Conversion from ANY existing `.ap3d`** (instant lightweight turntable 3D + `.glb`, never mutates input `.ap3d`):
-   ```bash
-   python3 toolkit/ap3d_to_full3d.py \
-     --in dist/your-char.ap3d \
-     --out-html dist/your-char-full3d.html \
-     --out-glb dist/your-char-full3d.glb
-   ```
-2. **Path 2 — Dual-Target SDF -> 60-FPS Articulated Full-3D Mesh** (best quality & full 60-FPS motion):
-   - Extract smooth watertight body/limb parts via `toolkit.full3d_mesh_kit.extract_surface_nets(...)` and ropes/accessories via `make_tube_mesh(...)` / `make_sphere_mesh(...)` / `make_prism_tooth(...)` (all mathematically guarded by `ensure_outward_winding` so ropes/straps NEVER invert normals and turn dark!).
-   - Render with **2-Pass 2×2-SSAA exact-ID screen-space silhouette outlines** (NO inverted-hull extrusion -> ZERO false internal lines in concave grooves/fin roots!), **camera-aligned studio key lighting** (`uLightDir`), and a **true 3D rotating turntable pedestal & shadows** (auto-pixelated in `PIXEL+AA` / `RETRO PX`, translucent glass underside when pitching below `0°` down to `-85°`).
-   - Reuse `engine/anime_ui_theme.css` + `engine/anime_ui_kit.js` unmodified with `engine/full3d_mesh_engine.js` (or a character-specific vertex rig).
 
 ### Stage 6: Live Headless WebGL Verification, Visual Polish Loop & GIF Export
 1. Verify in headless Chrome via Playwright (`--use-gl=angle --use-angle=swiftshader --enable-webgl`) on **Desktop (`1280×800`)** and **Mobile (`390×844`, `has_touch=True`)**, asserting **0 console/page errors**.

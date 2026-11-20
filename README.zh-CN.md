@@ -160,9 +160,8 @@ flowchart LR
 
 ### 2. 多视图蓝图测量与纯 GPU SDF 制作工具包（`toolkit/`）
 - **`multiview_fitter.py`（纯蓝图测量·禁止直接投影贴图）**：对生成的 `FRONT / SIDE / BACK / TOP` 多视图采用连通域分割、共享基线对齐与内部纯白空洞清除，提取精确坐标与干净赛璐璐调色板（`sample_clean_palette`），并输出正交轮廓 IoU 对比图（`qa_3d_fit_overlay.png`，目标 `≥ 72%`）。绝不将 2D 线稿三视图直接当作身体贴图投影，彻底杜绝发糊黑边！
-- **`full3d_mesh_kit.py` / `ap3d_to_full3d.py` / `engine/full3d_mesh_engine.js`（轻量真 3D 网格转换与 `.glb` 导出）**：完全复用同一套 `AnimeUIKit` 像素工作室 UI，既可将任意既有 `.ap3d` 一键转为超轻量硬件 Z 缓冲真 3D 单文件 HTML ＋ `.glb`，也可直接从 GPU SDF 提取 Surface Nets 平滑网格与外法线校验的 3D 绳管/球体，实现 60 FPS 全向（`-65°..+90°` 俯仰）实时展示。
 - **`ap3d_format.py`**：Python CLI 一键执行 `.ap3d` 的 `pack`、`unpack`、`inspect` 与 `merge`（无需重烘即可向已有角色追加新动作）。
-- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**：CuPy GPU / NumPy CPU 纯 SDF（含 float32 NaN 防护 `safe_sin_pow`、3D 绳带 `sd_polyline`、勒痕膨出浮雕 `sdf_indent_bulge` 与三段法线赛璐璐着色）、无刘海局部人脸投影、FK/IK 统一 `PoseFrame`、全帧越界防护与高质量 GIF 录制。
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**：CuPy GPU / NumPy CPU 纯 SDF（含 float32 NaN 防护 `safe_sin_pow`、收下巴圆脸二次元头部 `sd_anime_head`、3D 绳带 `sd_polyline`、勒痕膨出浮雕 `sdf_indent_bulge` 与三段法线赛璐璐着色）、无刘海局部人脸投影、FK/IK 统一 `PoseFrame`、全帧越界防护与高质量 GIF 录制。
 
 ---
 

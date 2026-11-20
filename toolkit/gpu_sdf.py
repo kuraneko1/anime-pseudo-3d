@@ -185,6 +185,46 @@ def sdf_indent_bulge(
     return d_base + (cinch - puff) * mask
 
 
+def sd_anime_head(
+    X, Y, Z,
+    cx: float, cy: float, cz: float,
+    rx: float, ry: float, rz: float,
+    cheek_drop: float = 0.52,
+    cheek_rx_ratio: float = 0.96,
+    cheek_ry_ratio: float = 0.93,
+    chin_tuck_y: float = 0.08,
+    bevel_front_ratio: float = 0.86,
+    bevel_z_ratio: float = 0.82,
+    bevel_k: float | None = None,
+):
+    """Sculpt a cute anime/chibi head with soft round mochi cheeks and a cleanly tucked-in chin (zero underbite!).
+
+    Prevents the classic 3D SDF 'jutting chin / underbite' defect caused by shifting lower-cheek or chin
+    ellipsoids forward (+Y) past the cranium. Scales cleanly across both tall anime and SD chibi heads:
+      1. Cranium + plump side cheeks stay aligned behind the forehead front plane (zero snout bulge).
+      2. Lower jaw ellipsoid is tucked BACKWARD (`-Y`, `cy - chin_tuck_y * ry`) toward the neck.
+      3. A tilted smooth-max chin bevel plane (`+0.68*(Y - y_lim) + 0.73*(z_turn - Z)`) softly rounds
+         the front-bottom chin curve inward into the neck across 0°, 22°, 45°, 68°, and 90° profiles.
+    """
+    d_cranium = sd_ellipsoid(X, Y, Z, cx, cy, cz, rx, ry, rz)
+    d_cheeks = sd_ellipsoid(
+        X, Y, Z,
+        cx, cy + 0.025 * ry, cz - cheek_drop * rz,
+        rx * cheek_rx_ratio, ry * cheek_ry_ratio, rz * 0.51,
+    )
+    d_jaw_tuck = sd_ellipsoid(
+        X, Y, Z,
+        cx, cy - chin_tuck_y * ry, cz - 0.78 * rz,
+        rx * 0.66, ry * 0.73, rz * 0.27,
+    )
+    d_head = smin(smin(d_cranium, d_cheeks, 0.21 * rz), d_jaw_tuck, 0.16 * rz)
+    y_lim = cy + bevel_front_ratio * ry
+    z_turn = cz - bevel_z_ratio * rz
+    d_chin_bevel = (Y - y_lim) * 0.68 + (z_turn - Z) * 0.73
+    kb = (0.20 * rz) if bevel_k is None else bevel_k
+    return smax(d_head, d_chin_bevel, kb)
+
+
 def rot_inv_xyz(X, Y, Z, px: float, py: float, pz: float,
                 roll_deg: float = 0.0, pitch_deg: float = 0.0, yaw_deg: float = 0.0):
     """Inverse-rotate query coordinates around pivot (px, py, pz) to pose a rigid bone."""

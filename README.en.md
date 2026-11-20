@@ -160,9 +160,8 @@ flowchart LR
 
 ### 2. Multi-View Blueprint QA & Pure GPU SDF Production Toolkit (`toolkit/`)
 - **`multiview_fitter.py` (Blueprint-Only & Zero Body Texture Pasting)**: Splits generated `FRONT / SIDE / BACK / TOP` turnaround sheets using connected-component isolation + shared baseline preservation + interior white-hole clearing, extracts exact anatomical coordinates & clean cel palettes (`sample_clean_palette`), and validates pure SDF sculpts via orthographic Silhouette IoU QA overlays (`qa_3d_fit_overlay.png`, target `>= 72%`). **Never pastes 2D turnaround images as muddy body textures!**
-- **`full3d_mesh_kit.py` / `ap3d_to_full3d.py` / `engine/full3d_mesh_engine.js` (Lightweight Full-3D Polygon Mesh & `.glb` Export)**: Reuses the exact `AnimeUIKit` studio UI unmodified to convert any existing `.ap3d` into a lightweight hardware-Z-buffered Full-3D HTML + `.glb` in 1 command, OR extract smooth Surface-Nets + outward-normal-verified 3D tube/sphere meshes directly from GPU SDFs for silky 60-FPS full-sphere (`-65°..+90°` pitch) viewers.
 - **`ap3d_format.py`**: Python CLI for `.ap3d` `pack`, `unpack`, `inspect`, and `merge` (append extra animations without re-baking).
-- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: Auto CuPy/NumPy pure SDFs (with float32 NaN-safe `safe_sin_pow`, 3D `sd_polyline` cords, `sdf_indent_bulge` plush/cloth relief, and 3-step normal cel shading), hair-free face projection, unified FK/IK `PoseFrame`, border clipping guard, and Playwright + FFmpeg GIF capture.
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: Auto CuPy/NumPy pure SDFs (with float32 NaN-safe `safe_sin_pow`, tucked-chin mochi-cheek anime head `sd_anime_head`, 3D `sd_polyline` cords, `sdf_indent_bulge` plush/cloth relief, and 3-step normal cel shading), hair-free face projection, unified FK/IK `PoseFrame`, border clipping guard, and Playwright + FFmpeg GIF capture.
 
 ---
 

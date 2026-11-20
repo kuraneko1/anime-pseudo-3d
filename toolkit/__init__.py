@@ -1,7 +1,7 @@
-"""Anime Pseudo-3D Reusable Toolkit (Multi-View Blueprints, Pure GPU SDF, Full-3D Mesh/GLB Export, FK/IK Rigging, Pixel FX, .ap3d Codec, QA & GIF Recorder)."""
+"""Anime Pseudo-3D Reusable Toolkit (Multi-View Blueprints, Pure GPU SDF, FK/IK Rigging, Pixel FX, .ap3d Codec, QA & GIF Recorder)."""
 from .gpu_sdf import (
     xp, USE_GPU, to_numpy, vol_zyx_to_yxz,
-    safe_pow, safe_sin_pow, sd_polyline, sdf_indent_bulge,
+    safe_pow, safe_sin_pow, sd_polyline, sdf_indent_bulge, sd_anime_head,
 )
 from .rig_contracts import ArmPose, LegPose, PoseFrame, volume_preserving_sx, smoothstep, lerp3, periodic_lag
 from .qa_validator import assert_no_border_clipping, validate_motion_poses, save_tiled_webp, render_stack_angle, render_animation_sheet
@@ -15,15 +15,4 @@ from .multiview_fitter import (
     reconstruct_visual_hull,
     project_6view_colors,
     render_multiview_fit_qa,
-)
-from .full3d_mesh_kit import (
-    extract_surface_nets,
-    compute_vertex_normals,
-    ensure_outward_winding,
-    make_tube_mesh,
-    make_sphere_mesh,
-    make_prism_tooth,
-    merge_mesh_parts,
-    pack_full3d_payload,
-    export_glb,
 )
