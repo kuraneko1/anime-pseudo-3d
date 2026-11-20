@@ -1,13 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Anime Pseudo-3D Motion Pack Schema (v1.0)",
-  "description": "Character-agnostic declarative scene & motion specification consumed by engine/anime_stack_engine.js and engine/bundle_standalone.py.",
+  "title": "Anime Pseudo-3D Motion Pack Schema (v1.1)",
+  "description": "Character-agnostic declarative scene & arbitrary-N motion specification consumed by engine/anime_stack_engine.js, engine/anime_ui_kit.js, toolkit/ap3d_format.py, and engine/bundle_standalone.py.",
   "type": "object",
   "required": ["schema_version", "title", "character", "motions", "assets"],
   "properties": {
-    "schema_version": { "type": "string", "const": "1.0" },
+    "schema_version": { "type": "string", "enum": ["1.0", "1.1"] },
     "title": { "type": "string" },
     "subtitle": { "type": "string" },
+    "author": { "type": "string" },
+    "description": { "type": "string" },
     "badge_icon": { "type": "string" },
     "defaults": {
       "type": "object",
@@ -16,6 +18,7 @@
         "animFps": { "type": "integer", "default": 24 },
         "renderMode": { "type": "integer", "enum": [0, 1, 2, 3], "default": 2 },
         "dotSize": { "type": "number", "default": 1.35 },
+        "pitchDeg": { "type": "number", "minimum": 15, "maximum": 90, "default": 20 },
         "squash": { "type": "number", "default": 0.35 },
         "spacing": { "type": "number", "default": 1.0 },
         "zoom": { "type": "number", "default": 1.45 },
@@ -63,6 +66,7 @@
     "motions": {
       "type": "array",
       "minItems": 1,
+      "description": "Arbitrary number of motions (1 static model, 2, 9, 24, 50+). Optional `category` enables filter tabs in AnimeUIKit.",
       "items": {
         "type": "object",
         "required": ["id", "label", "keyPrefix"],
@@ -70,6 +74,7 @@
           "id": { "type": "string" },
           "label": { "type": "string" },
           "subtitle": { "type": "string" },
+          "category": { "type": "string", "description": "Optional grouping tag (e.g. BASE, POSE, ATTACK, SPECIAL) for arbitrary-N motion shelves." },
           "accent": { "type": "string", "enum": ["default", "ceo", "companion", "attack"] },
           "icon": { "type": "string" },
           "frames": { "type": "integer", "default": 24 },

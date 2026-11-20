@@ -2,13 +2,14 @@
 
 Verifies zero native browser range/select inputs, zero OS Unicode emojis, zero non-zero border-radius,
 zero backdrop-filter blur, zero Canvas 2D vector primitives, and zero cheap Web Audio oscillators.
+Supports modular HTML, CSS, and multiple JS engine/UI kit files.
 """
 import argparse
 import re
 import sys
 
 
-FORBIDDEN_HTML = [
+FORBIDDEN_HTML_CSS = [
     (r"<input\b[^>]*type\s*=\s*['\"]?range", "Native HTML range control found; use custom pixel .px-slider"),
     (r"<select\b", "Native HTML select menu found; use custom pixel buttons"),
     (r"backdrop-filter\s*:", "CSS backdrop-filter blur found; keep sharp solid pixel panels"),
@@ -47,21 +48,25 @@ def audit_file(path: str, rules: list[tuple[str, str]]) -> list[str]:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Audit HTML and JS files for 100% pixel-art compliance.")
-    ap.add_argument("--html", required=True, help="Path to viewer HTML file")
-    ap.add_argument("--js", required=True, help="Path to engine/viewer JS file")
+    ap = argparse.ArgumentParser(description="Audit HTML, CSS, and JS files for 100% pixel-art compliance.")
+    ap.add_argument("--html", nargs="*", default=[], help="Path(s) to viewer HTML file(s)")
+    ap.add_argument("--css", nargs="*", default=[], help="Path(s) to UI CSS file(s)")
+    ap.add_argument("--js", nargs="*", default=[], help="Path(s) to engine/UI JS file(s)")
     args = ap.parse_args()
 
     issues = []
-    issues.extend(audit_file(args.html, FORBIDDEN_HTML))
-    issues.extend(audit_file(args.js, FORBIDDEN_JS))
+    for p in args.html + args.css:
+        issues.extend(audit_file(p, FORBIDDEN_HTML_CSS))
+    for p in args.js:
+        issues.extend(audit_file(p, FORBIDDEN_JS))
 
     if issues:
         print("AUDIT FAILED:")
         for it in issues:
             print("  -", it)
         sys.exit(1)
-    print("AUDIT PASSED: 100% pixel-art compliant (zero default UI, zero emojis, zero vector canvas primitives).")
+    checked = len(args.html) + len(args.css) + len(args.js)
+    print(f"AUDIT PASSED ({checked} files): 100% pixel-art compliant (zero default UI, zero emojis, zero vector canvas primitives).")
 
 
 if __name__ == "__main__":

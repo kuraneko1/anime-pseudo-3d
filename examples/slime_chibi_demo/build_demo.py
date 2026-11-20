@@ -183,6 +183,7 @@ def main():
                 "id": "bounce",
                 "label": "BOUNCE",
                 "subtitle": "3D STAR PET",
+                "category": "COMPANION",
                 "accent": "companion",
                 "icon": "ico_bounce",
                 "frames": 24,
@@ -197,6 +198,7 @@ def main():
                 "id": "splash",
                 "label": "SPLASH",
                 "subtitle": "AQUA SLASH",
+                "category": "ATTACK",
                 "accent": "attack",
                 "icon": "ico_splash",
                 "frames": 24,
@@ -217,14 +219,16 @@ def main():
         json.dump(pack, f, indent=2)
 
     out_html = os.path.join(build_dir, "slime-chibi-standalone.html")
+    out_ap3d = os.path.join(build_dir, "slime-chibi.ap3d")
     bundle_standalone(
         html_path=os.path.join(REPO_ROOT, "engine", "viewer_shell.html"),
         js_path=os.path.join(REPO_ROOT, "engine", "anime_stack_engine.js"),
         pack_path=pack_path,
         assets_root=build_dir,
         out_path=out_html,
+        ap3d_out=out_ap3d,
     )
-    print(f"Demo build complete in {time.time() - t0:.2f}s -> {out_html}")
+    print(f"Demo build complete in {time.time() - t0:.2f}s -> {out_html} & {out_ap3d}")
 
 
 if __name__ == "__main__":

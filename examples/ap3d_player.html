@@ -1,0 +1,3332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>ANIME PSEUDO-3D PLAYER</title>
+  <style>
+/* Anime Pseudo-3D Reusable 100% Pixel-Art Studio UI Theme
+ * Zero non-zero border-radius, zero backdrop-filter blur, zero native range/select styling.
+ */
+:root {
+  --bg-deep: #0b1126;
+  --panel-bg: #141c3a;
+  --panel-hi: #2d3e76;
+  --panel-lo: #080c1c;
+  --border-ink: #050814;
+  --accent-cyan: #58c4ff;
+  --accent-blue: #4d6bfe;
+  --accent-gold: #facc15;
+  --text-main: #eef4ff;
+  --text-dim: #9ab0db;
+}
+
+* {
+  box-sizing: border-box;
+  border-radius: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body, #appRoot {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-main);
+  font-family: "Courier New", "Noto Sans Mono CJK JP", monospace;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #090e20;
+  border: 2px solid var(--border-ink);
+}
+::-webkit-scrollbar-thumb {
+  background: #3a5296;
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #6b88d8, inset -2px -2px 0 #1e2d5c;
+}
+
+button {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 1fr 376px;
+  width: 100%;
+  height: 100%;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.stage-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #dfe9f8;
+}
+
+#stageCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+#stageCanvas.dragging {
+  cursor: grabbing;
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 12px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(11, 17, 38, 0.88);
+  border: 4px dashed var(--accent-cyan);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  pointer-events: none;
+  z-index: 20;
+}
+.drop-overlay.active {
+  display: flex;
+}
+.drop-overlay-sub {
+  font-size: 11px;
+  color: var(--accent-gold);
+}
+
+.empty-stage-banner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 16px 22px;
+  background: rgba(14, 22, 48, 0.96);
+  border: 3px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #3a549c, inset -2px -2px 0 #070b18, 0 5px 0 rgba(0, 0, 0, 0.55);
+  text-align: center;
+  z-index: 15;
+}
+.empty-stage-banner h2 {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  color: var(--accent-cyan);
+  letter-spacing: 1px;
+}
+.empty-stage-banner p {
+  margin: 0 0 12px 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.stage-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  background: var(--panel-bg);
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 var(--panel-hi), inset -2px -2px 0 var(--panel-lo), 0 4px 0 rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.stage-badge-title {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #ffffff;
+}
+.stage-badge-sub {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  margin-top: 2px;
+}
+
+.hud-chip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 6px 10px;
+  background: rgba(14, 22, 48, 0.94);
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #293c74, inset -2px -2px 0 #070b18, 0 3px 0 rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-gold);
+  pointer-events: none;
+  letter-spacing: 0.6px;
+}
+
+.status-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 54px;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: rgba(14, 22, 48, 0.96);
+  border: 2px solid var(--accent-cyan);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.6);
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffffff;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.16s linear;
+  z-index: 25;
+}
+.status-toast.show {
+  opacity: 1;
+}
+
+.px-ico {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+.px-ico-lg {
+  width: 24px;
+  height: 24px;
+}
+
+.stage-footer {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+}
+.hint-box {
+  padding: 5px 9px;
+  background: rgba(12, 18, 40, 0.92);
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #233364, inset -2px -2px 0 #070b18;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+.touch-rot-group {
+  display: flex;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-bg);
+  border-left: 3px solid var(--border-ink);
+  box-shadow: inset 2px 0 0 var(--panel-hi);
+  overflow-y: auto;
+  padding: 7px;
+  gap: 5px;
+}
+
+.panel-section {
+  background: #0f1630;
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #243364, inset -2px -2px 0 #070b18, 0 3px 0 rgba(0, 0, 0, 0.45);
+  padding: 6px 8px;
+}
+
+.sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.9px;
+  color: var(--accent-cyan);
+  padding-bottom: 3px;
+  margin-bottom: 5px;
+  border-bottom: 2px solid #22305e;
+}
+.sec-head-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.motion-nav-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.motion-nav-btn {
+  min-height: 20px;
+  padding: 1px 6px;
+  font-size: 10px;
+}
+.motion-count-badge {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-gold);
+  padding: 0 3px;
+}
+
+.motion-cat-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 5px;
+}
+.cat-pill {
+  min-height: 21px;
+  padding: 2px 6px;
+  font-size: 9px;
+  background: #18254c;
+  color: var(--text-dim);
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 1px 1px 0 #314786, inset -1px -1px 0 #0c1228;
+  font-weight: 900;
+}
+.cat-pill.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: inset 1px 1px 0 #7dd3fc, inset -1px -1px 0 #173a8a;
+}
+
+.motion-shelf {
+  max-height: 138px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.motion-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.motion-grid.cols-1 {
+  grid-template-columns: 1fr;
+}
+.motion-grid.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.motion-btn {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 3px 5px;
+  min-height: 36px;
+  gap: 1px;
+  overflow: hidden;
+}
+.motion-btn-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.motion-btn-sub {
+  font-size: 9px;
+  font-weight: 700;
+  color: #a8bee8;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.motion-btn.active .motion-btn-sub {
+  color: #e0f2fe;
+}
+.motion-btn.accent-ceo {
+  background: #2b2968;
+  box-shadow: inset 2px 2px 0 #6862c8, inset -2px -2px 0 #171542, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+.motion-btn.accent-companion {
+  background: #1d3c78;
+  box-shadow: inset 2px 2px 0 #5b90ff, inset -2px -2px 0 #10234d, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+.motion-btn.accent-attack {
+  background: #144468;
+  box-shadow: inset 2px 2px 0 #48b8ea, inset -2px -2px 0 #0a253d, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+.motion-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: inset 2px 2px 0 #7dd3fc, inset -2px -2px 0 #173a8a, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+
+.timeline-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--text-dim);
+  margin-top: 7px;
+  margin-bottom: 4px;
+}
+.timeline-head .val {
+  color: var(--accent-gold);
+  font-variant-numeric: tabular-nums;
+}
+.timeline-bar {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+  height: 16px;
+  padding: 2px;
+  background: #070b18;
+  border: 2px solid var(--border-ink);
+  cursor: pointer;
+  touch-action: none;
+}
+.tl-cell {
+  background: #1b2852;
+  height: 100%;
+}
+.tl-cell.past {
+  background: #2f57b8;
+}
+.tl-cell.cur {
+  background: var(--accent-gold);
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+}
+.mode-grid .px-btn {
+  min-height: 25px;
+  padding: 3px 6px;
+  font-size: 10px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+.preset-grid .px-btn {
+  min-height: 26px;
+  padding: 3px 6px;
+  font-size: 10px;
+}
+
+.file-io-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 5px;
+}
+.file-io-row .px-btn {
+  min-height: 26px;
+  padding: 3px 4px;
+  font-size: 10px;
+}
+.hidden-file-input {
+  display: none;
+}
+
+.slider-row {
+  display: grid;
+  grid-template-columns: 72px 1fr 46px 56px;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  border-bottom: 2px solid #1e2a54;
+  font-size: 10px;
+  font-weight: 900;
+}
+.slider-row:last-child {
+  border-bottom: none;
+  padding-bottom: 1px;
+}
+.slider-label {
+  color: var(--text-main);
+  white-space: nowrap;
+}
+.slider-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-gold);
+}
+.slider-action {
+  width: 56px;
+  min-height: 25px;
+  padding: 3px 0;
+  font-size: 10px;
+}
+
+.px-slider {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+.px-slider-track {
+  position: relative;
+  width: 100%;
+  height: 11px;
+  background: #080c1d;
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #040610, inset -1px -1px 0 #2b3c72;
+  overflow: hidden;
+}
+.px-slider-fill {
+  height: 100%;
+  background: var(--accent-blue);
+  box-shadow: inset 0 2px 0 #93d5ff, inset -2px -2px 0 #1e429f;
+  width: 50%;
+}
+.px-slider-ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 8px, rgba(5, 8, 20, 0.72) 8px 10px);
+}
+.px-slider-thumb {
+  position: absolute;
+  top: 1px;
+  width: 11px;
+  height: 20px;
+  transform: translateX(-5px);
+  background: #e2ecff;
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #ffffff, inset -2px -2px 0 #6c82b0, 0 2px 0 rgba(0, 0, 0, 0.65);
+  pointer-events: none;
+  left: 50%;
+}
+.px-slider:hover .px-slider-thumb,
+.px-slider.dragging .px-slider-thumb {
+  background: var(--accent-gold);
+}
+
+.px-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 7px;
+  background: #233368;
+  color: #f4f8ff;
+  border: 2px solid var(--border-ink);
+  box-shadow: inset 2px 2px 0 #4662b4, inset -2px -2px 0 #121c3e, 0 3px 0 rgba(0, 0, 0, 0.55);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+.px-btn:hover {
+  background: #2d4386;
+}
+.px-btn:active {
+  transform: translateY(2px);
+  box-shadow: inset 2px 2px 0 #121c3e, inset -2px -2px 0 #4662b4;
+}
+.px-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: inset 2px 2px 0 #7dd3fc, inset -2px -2px 0 #173a8a, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+.px-btn.pink {
+  background: #be185d;
+  color: #fff1f2;
+  box-shadow: inset 2px 2px 0 #f9a8d4, inset -2px -2px 0 #70103a, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+.px-btn.gold {
+  background: #b47b14;
+  color: #fffbeb;
+  box-shadow: inset 2px 2px 0 #fde047, inset -2px -2px 0 #714908, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+.px-btn.teal {
+  background: #0f5f76;
+  color: #e6fbff;
+  box-shadow: inset 2px 2px 0 #5eead4, inset -2px -2px 0 #083344, 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+
+.toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+@media (max-width: 860px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 52% 48%;
+  }
+  .panel {
+    border-left: none;
+    border-top: 3px solid var(--border-ink);
+    box-shadow: inset 0 2px 0 var(--panel-hi);
+    padding: 8px;
+    gap: 7px;
+  }
+  .stage-badge {
+    top: 8px;
+    left: 8px;
+    padding: 5px 8px;
+  }
+  .stage-badge-title {
+    font-size: 11px;
+  }
+  .stage-badge-sub {
+    font-size: 9px;
+  }
+  .hud-chip {
+    top: auto;
+    right: auto;
+    left: 8px;
+    bottom: 8px;
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  .hint-box {
+    display: none;
+  }
+  .stage-footer {
+    bottom: 8px;
+    right: 8px;
+    justify-content: flex-end;
+  }
+  .motion-shelf {
+    max-height: 150px;
+  }
+  .slider-row {
+    grid-template-columns: 68px 1fr 44px 54px;
+    gap: 6px;
+    padding: 5px 0;
+  }
+  .slider-action {
+    width: 54px;
+  }
+}
+
+</style>
+</head>
+<body>
+  <div id="appRoot"></div>
+  <script>
+/* Anime Pseudo-3D (.ap3d) Zero-Dependency Browser Binary Codec
+ *
+ * Byte-compatible with `toolkit/ap3d_format.py`.
+ * Works completely offline over file:// with zero external ZIP/compression libraries.
+ *
+ * Binary Header (24 bytes, little-endian):
+ *   [0..4)   ASCII "AP3D"
+ *   [4..6)   uint16 version (1)
+ *   [6..8)   uint16 flags (0)
+ *   [8..12)  uint32 manifestLen (UTF-8 JSON scene config)
+ *   [12..16) uint32 tocLen (UTF-8 JSON [{k, m, o, s}, ...])
+ *   [16..24) uint64 payloadLen (low uint32 + high uint32)
+ */
+(function (global) {
+  "use strict";
+
+  const MAGIC = [0x41, 0x50, 0x33, 0x44]; // "AP3D"
+  const VERSION = 1;
+  const HEADER_SIZE = 24;
+
+  const textEnc = new TextEncoder();
+  const textDec = new TextDecoder("utf-8");
+
+  function dataUriToBytes(uri) {
+    const comma = uri.indexOf(",");
+    if (comma < 0) throw new Error("Invalid data URI");
+    const head = uri.slice(5, comma);
+    const semi = head.indexOf(";");
+    const mime = semi >= 0 ? head.slice(0, semi) : (head || "application/octet-stream");
+    const b64 = uri.slice(comma + 1);
+    const binStr = atob(b64);
+    const out = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) {
+      out[i] = binStr.charCodeAt(i);
+    }
+    return { mime, bytes: out };
+  }
+
+  async function assetSrcToBytes(src) {
+    if (typeof src !== "string") {
+      throw new Error("Asset source must be a data URI or Blob/Object URL");
+    }
+    if (src.startsWith("data:")) {
+      return dataUriToBytes(src);
+    }
+    const resp = await fetch(src);
+    const buf = await resp.arrayBuffer();
+    const mime = resp.headers.get("content-type") || "application/octet-stream";
+    return { mime, bytes: new Uint8Array(buf) };
+  }
+
+  async function encode(sceneConfig, assetMap) {
+    const cleanCfg = {};
+    for (const k of Object.keys(sceneConfig || {})) {
+      if (k !== "assets") cleanCfg[k] = sceneConfig[k];
+    }
+    const manifestBytes = textEnc.encode(JSON.stringify(cleanCfg));
+
+    const keys = Object.keys(assetMap || {}).sort();
+    const toc = [];
+    const chunks = [];
+    let offset = 0;
+    for (const k of keys) {
+      const { mime, bytes } = await assetSrcToBytes(assetMap[k]);
+      toc.push({ k, m: mime, o: offset, s: bytes.byteLength });
+      chunks.push(bytes);
+      offset += bytes.byteLength;
+    }
+    const tocBytes = textEnc.encode(JSON.stringify(toc));
+
+    const totalLen = HEADER_SIZE + manifestBytes.byteLength + tocBytes.byteLength + offset;
+    const out = new Uint8Array(totalLen);
+    const dv = new DataView(out.buffer);
+    out[0] = MAGIC[0];
+    out[1] = MAGIC[1];
+    out[2] = MAGIC[2];
+    out[3] = MAGIC[3];
+    dv.setUint16(4, VERSION, true);
+    dv.setUint16(6, 0, true);
+    dv.setUint32(8, manifestBytes.byteLength, true);
+    dv.setUint32(12, tocBytes.byteLength, true);
+    dv.setUint32(16, offset >>> 0, true);
+    dv.setUint32(20, Math.floor(offset / 4294967296) >>> 0, true);
+
+    let cursor = HEADER_SIZE;
+    out.set(manifestBytes, cursor);
+    cursor += manifestBytes.byteLength;
+    out.set(tocBytes, cursor);
+    cursor += tocBytes.byteLength;
+    for (const chunk of chunks) {
+      out.set(chunk, cursor);
+      cursor += chunk.byteLength;
+    }
+    return out;
+  }
+
+  function decode(arrayBuffer) {
+    const bytes = arrayBuffer instanceof Uint8Array ? arrayBuffer : new Uint8Array(arrayBuffer);
+    if (bytes.byteLength < HEADER_SIZE) {
+      throw new Error("Invalid .ap3d file: header truncated");
+    }
+    if (bytes[0] !== MAGIC[0] || bytes[1] !== MAGIC[1] || bytes[2] !== MAGIC[2] || bytes[3] !== MAGIC[3]) {
+      // Optional JSON fallback if user dropped an uncompressed JSON bundle
+      const firstChar = String.fromCharCode(bytes[0]).trim();
+      if (firstChar === "{") {
+        const parsed = JSON.parse(textDec.decode(bytes));
+        return {
+          sceneConfig: parsed.sceneConfig || parsed,
+          assets: parsed.assets || {},
+          objectUrls: [],
+        };
+      }
+      throw new Error("Invalid .ap3d file: bad magic header (expected AP3D)");
+    }
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const version = dv.getUint16(4, true);
+    if (version !== VERSION) {
+      throw new Error(`Unsupported .ap3d version: ${version}`);
+    }
+    const manifestLen = dv.getUint32(8, true);
+    const tocLen = dv.getUint32(12, true);
+    const payloadLo = dv.getUint32(16, true);
+    const payloadHi = dv.getUint32(20, true);
+    const payloadLen = payloadLo + payloadHi * 4294967296;
+
+    const pManifest = HEADER_SIZE;
+    const pToc = pManifest + manifestLen;
+    const pPayload = pToc + tocLen;
+    if (pPayload + payloadLen > bytes.byteLength) {
+      throw new Error("Invalid .ap3d file: payload truncated");
+    }
+
+    const sceneConfig = JSON.parse(textDec.decode(bytes.subarray(pManifest, pToc)));
+    const toc = JSON.parse(textDec.decode(bytes.subarray(pToc, pPayload)));
+    const assets = {};
+    const objectUrls = [];
+    for (const entry of toc) {
+      const slice = bytes.subarray(pPayload + entry.o, pPayload + entry.o + entry.s);
+      const blob = new Blob([slice], { type: entry.m || "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      assets[entry.k] = url;
+      objectUrls.push(url);
+    }
+    return { sceneConfig, assets, objectUrls };
+  }
+
+  function downloadBytes(bytes, filename) {
+    const blob = new Blob([bytes], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || "character.ap3d";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function slugifyFilename(title) {
+    const clean = String(title || "anime_character")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return (clean || "anime_character") + ".ap3d";
+  }
+
+  global.AP3DCodec = {
+    VERSION,
+    encode,
+    decode,
+    downloadBytes,
+    slugifyFilename,
+  };
+})(window);
+
+</script>
+  <script>
+/* Anime Pseudo-3D Reusable Modular UI Component Library (`window.AnimeUIKit`)
+ *
+ * 100% Pixel-Art Compliant (zero native range/select inputs, zero emojis, zero rounded corners).
+ * Supports:
+ *   - Arbitrary-N animations (1 static model, 2, 4, 9, 16, 24, 50+ motions) with dynamic grid,
+ *     scrollable motion shelf, optional category filter pills, and PREV/NEXT (`[` / `]`) stepping.
+ *   - Reusable individual widgets (`createPixelSlider`, `createMotionShelf`, `createTimelineScrubber`,
+ *     `createFileIOControls`) OR turnkey full studio shell (`mountStudioUI`).
+ *   - Live `.ap3d` Load / Append-Merge / Export + Drag-and-Drop onto the 3D stage.
+ */
+(function (global) {
+  "use strict";
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+
+  function createPixelSlider({ id, label, min, max, step, getVal, setVal, formatVal, actionText, actionId, onAction, ariaLabel }) {
+    const row = el("div", "slider-row");
+    const lbl = el("span", "slider-label", label);
+
+    const slider = el("div", "px-slider");
+    if (id) slider.id = id;
+    slider.setAttribute("role", "slider");
+    slider.setAttribute("tabindex", "0");
+    slider.setAttribute("aria-label", ariaLabel || label);
+    slider.setAttribute("aria-valuemin", String(min));
+    slider.setAttribute("aria-valuemax", String(max));
+
+    const track = el("div", "px-slider-track");
+    const fill = el("div", "px-slider-fill");
+    const ticks = el("div", "px-slider-ticks");
+    track.appendChild(fill);
+    track.appendChild(ticks);
+    const thumb = el("div", "px-slider-thumb");
+    slider.appendChild(track);
+    slider.appendChild(thumb);
+
+    const valSpan = el("span", "slider-val");
+    if (id) valSpan.id = id.replace(/^sl/, "val");
+
+    const actBtn = el("button", "px-btn slider-action", actionText || "");
+    actBtn.type = "button";
+    if (actionId) actBtn.id = actionId;
+    if (onAction) actBtn.addEventListener("click", onAction);
+
+    row.appendChild(lbl);
+    row.appendChild(slider);
+    row.appendChild(valSpan);
+    row.appendChild(actBtn);
+
+    function sync() {
+      let v;
+      try { v = getVal(); } catch (_) { return; }
+      if (typeof v !== "number" || Number.isNaN(v)) return;
+      const pct = Math.max(0, Math.min(1, (v - min) / Math.max(1e-6, max - min))) * 100;
+      fill.style.width = pct.toFixed(2) + "%";
+      thumb.style.left = pct.toFixed(2) + "%";
+      slider.setAttribute("aria-valuenow", String(v));
+      valSpan.textContent = formatVal ? formatVal(v) : String(v);
+    }
+
+    function setFromClientX(clientX) {
+      const rect = slider.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+      let v = min + ratio * (max - min);
+      v = Math.round(v / step) * step;
+      v = Math.max(min, Math.min(max, v));
+      setVal(v);
+      sync();
+    }
+
+    slider.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      slider.setPointerCapture(e.pointerId);
+      slider.classList.add("dragging");
+      setFromClientX(e.clientX);
+    });
+    slider.addEventListener("pointermove", (e) => {
+      if (!slider.classList.contains("dragging")) return;
+      setFromClientX(e.clientX);
+    });
+    const endDrag = () => slider.classList.remove("dragging");
+    slider.addEventListener("pointerup", endDrag);
+    slider.addEventListener("pointercancel", endDrag);
+    slider.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setVal(Math.max(min, getVal() - step));
+        sync();
+      } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setVal(Math.min(max, getVal() + step));
+        sync();
+      }
+    });
+
+    sync();
+    return { el: row, slider, valSpan, actionBtn: actBtn, sync };
+  }
+
+  function createTimelineScrubber({ onScrub }) {
+    const wrap = el("div", "timeline-wrap");
+    const head = el("div", "timeline-head");
+    const headLbl = el("span", "", "TIMELINE (SCRUB)");
+    const tlVal = el("span", "val", "F01 / 24");
+    tlVal.id = "tlVal";
+    head.appendChild(headLbl);
+    head.appendChild(tlVal);
+
+    const bar = el("div", "timeline-bar");
+    bar.id = "timelineBar";
+    bar.setAttribute("role", "slider");
+    bar.setAttribute("tabindex", "0");
+    bar.setAttribute("aria-label", "Animation Timeline");
+    bar.setAttribute("aria-valuemin", "1");
+
+    wrap.appendChild(head);
+    wrap.appendChild(bar);
+
+    let cells = [];
+    let frameCount = 24;
+
+    function rebuild(count) {
+      frameCount = Math.max(1, count | 0);
+      bar.innerHTML = "";
+      bar.style.gridTemplateColumns = `repeat(${frameCount}, 1fr)`;
+      bar.setAttribute("aria-valuemax", String(frameCount));
+      cells = [];
+      for (let i = 0; i < frameCount; i++) {
+        const c = el("div", "tl-cell" + (i === 0 ? " cur" : ""));
+        bar.appendChild(c);
+        cells.push(c);
+      }
+    }
+    rebuild(24);
+
+    function update(fIdx, count) {
+      const fc = Math.max(1, (count || frameCount) | 0);
+      if (cells.length !== fc) rebuild(fc);
+      const safeF = Math.max(0, Math.min(fc - 1, fIdx | 0));
+      for (let i = 0; i < fc; i++) {
+        cells[i].className = i === safeF ? "tl-cell cur" : (i < safeF ? "tl-cell past" : "tl-cell");
+      }
+      tlVal.textContent = `F${String(safeF + 1).padStart(2, "0")} / ${fc}`;
+      bar.setAttribute("aria-valuenow", String(safeF + 1));
+    }
+
+    let dragging = false;
+    function scrubAt(clientX) {
+      const rect = bar.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(0.9999, (clientX - rect.left) / Math.max(1, rect.width)));
+      const f = Math.floor(ratio * frameCount);
+      if (onScrub) onScrub(f);
+    }
+    bar.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      bar.setPointerCapture(e.pointerId);
+      scrubAt(e.clientX);
+    });
+    bar.addEventListener("pointermove", (e) => { if (dragging) scrubAt(e.clientX); });
+    bar.addEventListener("pointerup", () => { dragging = false; });
+    bar.addEventListener("pointercancel", () => { dragging = false; });
+
+    return { el: wrap, bar, valSpan: tlVal, update };
+  }
+
+  function createMotionShelf({ onSelect, onStep, getAssetSrc }) {
+    const section = el("div", "panel-section");
+    const head = el("div", "sec-head");
+    const headLeft = el("div", "sec-head-left");
+    const headIco = el("img", "px-ico");
+    headIco.setAttribute("data-ico", "ico_anim");
+    headIco.alt = "motions";
+    const headTitle = el("span", "", "MOTIONS");
+    headTitle.id = "motionHead";
+    headLeft.appendChild(headIco);
+    headLeft.appendChild(headTitle);
+
+    const nav = el("div", "motion-nav-inline");
+    const btnPrev = el("button", "px-btn motion-nav-btn", "<");
+    btnPrev.type = "button";
+    btnPrev.id = "btnMotionPrev";
+    btnPrev.title = "Previous Motion ([)";
+    const countBadge = el("span", "motion-count-badge", "1/1");
+    countBadge.id = "motionCounter";
+    const btnNext = el("button", "px-btn motion-nav-btn", ">");
+    btnNext.type = "button";
+    btnNext.id = "btnMotionNext";
+    btnNext.title = "Next Motion (])";
+    btnPrev.addEventListener("click", () => { if (onStep) onStep(-1); });
+    btnNext.addEventListener("click", () => { if (onStep) onStep(1); });
+    nav.appendChild(btnPrev);
+    nav.appendChild(countBadge);
+    nav.appendChild(btnNext);
+
+    head.appendChild(headLeft);
+    head.appendChild(nav);
+    section.appendChild(head);
+
+    const catBar = el("div", "motion-cat-bar");
+    catBar.id = "motionCatBar";
+    section.appendChild(catBar);
+
+    const shelf = el("div", "motion-shelf");
+    const grid = el("div", "motion-grid");
+    grid.id = "motionGrid";
+    shelf.appendChild(grid);
+    section.appendChild(shelf);
+
+    let allMotions = [];
+    let activeMotionId = "";
+    let activeCategory = "ALL";
+
+    function renderGrid() {
+      const visible = activeCategory === "ALL"
+        ? allMotions
+        : allMotions.filter((m) => (m.category || "GENERAL").toUpperCase() === activeCategory);
+
+      grid.innerHTML = "";
+      grid.className = "motion-grid";
+      if (visible.length <= 1) grid.classList.add("cols-1");
+      else if (visible.length <= 4) grid.classList.add("cols-2");
+
+      visible.forEach((m) => {
+        const globalIdx = allMotions.indexOf(m);
+        const btn = el("button", "px-btn motion-btn");
+        btn.type = "button";
+        if (m.accent && m.accent !== "default") btn.classList.add("accent-" + m.accent);
+        if (m.id === activeMotionId) btn.classList.add("active");
+        btn.setAttribute("data-motion", m.id);
+
+        const top = el("span", "motion-btn-top");
+        if (m.icon) {
+          const ico = el("img", "px-ico");
+          ico.setAttribute("data-ico", m.icon);
+          ico.alt = "";
+          if (getAssetSrc) {
+            const src = getAssetSrc(m.icon);
+            if (src) ico.src = src;
+          }
+          top.appendChild(ico);
+        }
+        top.appendChild(el("span", "", `${globalIdx + 1}.${m.label}`));
+        btn.appendChild(top);
+        if (m.subtitle) {
+          btn.appendChild(el("span", "motion-btn-sub", m.subtitle));
+        }
+        btn.addEventListener("click", () => { if (onSelect) onSelect(m.id); });
+        grid.appendChild(btn);
+      });
+    }
+
+    function refresh(motions, activeId) {
+      allMotions = Array.isArray(motions) ? motions : [];
+      activeMotionId = activeId || (allMotions[0] ? allMotions[0].id : "");
+
+      const curIdx = Math.max(0, allMotions.findIndex((m) => m.id === activeMotionId));
+      const curM = allMotions[curIdx];
+      const fc = curM ? (curM.frames || 24) : 1;
+      if (allMotions.length === 0) {
+        headTitle.textContent = "NO MODEL LOADED";
+      } else if (allMotions.length === 1 && fc === 1) {
+        headTitle.textContent = "STATIC 3D MODEL";
+      } else {
+        headTitle.textContent = `${allMotions.length} MOTIONS (${fc}F)`;
+      }
+      nav.style.display = allMotions.length > 1 ? "flex" : "none";
+      countBadge.textContent = allMotions.length > 0 ? `${curIdx + 1}/${allMotions.length}` : "0/0";
+
+      // Build optional category filter pills whenever 2+ distinct categories exist
+      const cats = [];
+      const catSet = new Set();
+      for (const m of allMotions) {
+        if (m.category) {
+          const c = String(m.category).toUpperCase();
+          if (!catSet.has(c)) { catSet.add(c); cats.push(c); }
+        }
+      }
+      if (cats.length >= 2) {
+        if (activeCategory !== "ALL" && !catSet.has(activeCategory)) activeCategory = "ALL";
+        catBar.style.display = "flex";
+        catBar.innerHTML = "";
+        ["ALL", ...cats].forEach((c) => {
+          const pill = el("button", "cat-pill" + (c === activeCategory ? " active" : ""), c);
+          pill.type = "button";
+          pill.setAttribute("data-cat", c);
+          pill.addEventListener("click", () => {
+            activeCategory = c;
+            catBar.querySelectorAll(".cat-pill").forEach((p) => p.classList.toggle("active", p.getAttribute("data-cat") === c));
+            renderGrid();
+          });
+          catBar.appendChild(pill);
+        });
+      } else {
+        activeCategory = "ALL";
+        catBar.style.display = "none";
+        catBar.innerHTML = "";
+      }
+
+      renderGrid();
+    }
+
+    function setActive(activeId) {
+      activeMotionId = activeId;
+      const curIdx = Math.max(0, allMotions.findIndex((m) => m.id === activeMotionId));
+      countBadge.textContent = allMotions.length > 0 ? `${curIdx + 1}/${allMotions.length}` : "0/0";
+      grid.querySelectorAll("[data-motion]").forEach((btn) => {
+        const isAct = btn.getAttribute("data-motion") === activeMotionId;
+        btn.classList.toggle("active", isAct);
+        if (isAct && typeof btn.scrollIntoView === "function") {
+          btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      });
+    }
+
+    return { el: section, refresh, setActive };
+  }
+
+  function createFileIOControls({ onLoadFile, onMergeFile, onExport }) {
+    const section = el("div", "panel-section");
+    const head = el("div", "sec-head");
+    const headLeft = el("div", "sec-head-left");
+    const ico = el("img", "px-ico");
+    ico.setAttribute("data-ico", "ico_layers");
+    ico.alt = "package";
+    headLeft.appendChild(ico);
+    headLeft.appendChild(el("span", "", "PACKAGE (.AP3D)"));
+    head.appendChild(headLeft);
+    section.appendChild(head);
+
+    const row = el("div", "file-io-row");
+
+    const inputLoad = el("input", "hidden-file-input");
+    inputLoad.type = "file";
+    inputLoad.id = "ap3dLoadInput";
+    inputLoad.accept = ".ap3d,.json,application/octet-stream";
+    inputLoad.addEventListener("change", () => {
+      if (inputLoad.files && inputLoad.files[0] && onLoadFile) {
+        onLoadFile(inputLoad.files[0]);
+      }
+      inputLoad.value = "";
+    });
+
+    const inputMerge = el("input", "hidden-file-input");
+    inputMerge.type = "file";
+    inputMerge.id = "ap3dMergeInput";
+    inputMerge.accept = ".ap3d,.json,application/octet-stream";
+    inputMerge.addEventListener("change", () => {
+      if (inputMerge.files && inputMerge.files[0] && onMergeFile) {
+        onMergeFile(inputMerge.files[0]);
+      }
+      inputMerge.value = "";
+    });
+
+    const btnLoad = el("button", "px-btn teal", "LOAD");
+    btnLoad.type = "button";
+    btnLoad.id = "btnLoadAp3d";
+    btnLoad.title = "Load .ap3d character package";
+    btnLoad.addEventListener("click", () => inputLoad.click());
+
+    const btnMerge = el("button", "px-btn", "+MOTION");
+    btnMerge.type = "button";
+    btnMerge.id = "btnMergeAp3d";
+    btnMerge.title = "Append motions from another .ap3d file";
+    btnMerge.addEventListener("click", () => inputMerge.click());
+
+    const btnExport = el("button", "px-btn gold", "EXPORT");
+    btnExport.type = "button";
+    btnExport.id = "btnExportAp3d";
+    btnExport.title = "Export current character & motions as .ap3d";
+    btnExport.addEventListener("click", () => { if (onExport) onExport(); });
+
+    row.appendChild(btnLoad);
+    row.appendChild(btnMerge);
+    row.appendChild(btnExport);
+    section.appendChild(row);
+    section.appendChild(inputLoad);
+    section.appendChild(inputMerge);
+
+    return { el: section, btnLoad, btnMerge, btnExport, triggerLoad: () => inputLoad.click() };
+  }
+
+  function mountStudioUI(rootEl, engine, options) {
+    const opts = Object.assign(
+      {
+        showFileIO: true,
+        showRenderModes: true,
+        showViewAngles: true,
+        showSliders: true,
+        showToggles: true,
+      },
+      options || {}
+    );
+
+    rootEl.innerHTML = "";
+    if (!rootEl.style.width) rootEl.style.width = "100%";
+    if (!rootEl.style.height) rootEl.style.height = "100%";
+    const shell = el("div", "app-shell");
+
+    // === LEFT STAGE ===
+    const stageWrap = el("div", "stage-wrap");
+    const canvas = el("canvas");
+    canvas.id = "stageCanvas";
+    stageWrap.appendChild(canvas);
+
+    const dropOverlay = el("div", "drop-overlay");
+    dropOverlay.appendChild(el("div", "", "DROP .AP3D PACKAGE TO LOAD"));
+    dropOverlay.appendChild(el("div", "drop-overlay-sub", "HOLD SHIFT WHILE DROPPING TO +MERGE MOTIONS"));
+    stageWrap.appendChild(dropOverlay);
+
+    const emptyBanner = el("div", "empty-stage-banner");
+    emptyBanner.id = "emptyStageBanner";
+    emptyBanner.style.display = "none";
+    emptyBanner.appendChild(el("h2", "", "ANIME PSEUDO-3D PLAYER (.AP3D)"));
+    emptyBanner.appendChild(el("p", "", "DROP ANY .AP3D FILE HERE OR CLICK LOAD"));
+    const emptyLoadBtn = el("button", "px-btn teal", "LOAD .AP3D FILE");
+    emptyLoadBtn.type = "button";
+    emptyBanner.appendChild(emptyLoadBtn);
+    stageWrap.appendChild(emptyBanner);
+
+    const badge = el("div", "stage-badge");
+    const badgeIcon = el("img", "px-ico px-ico-lg");
+    badgeIcon.id = "badgeIcon";
+    badgeIcon.setAttribute("data-ico", "ico_brand");
+    badgeIcon.alt = "brand";
+    const badgeText = el("div");
+    const badgeTitle = el("div", "stage-badge-title", "ANIME PSEUDO-3D");
+    badgeTitle.id = "badgeTitle";
+    const badgeSub = el("div", "stage-badge-sub", "WEBGL 2-PASS SPRITE STACK ENGINE");
+    badgeSub.id = "badgeSub";
+    badgeText.appendChild(badgeTitle);
+    badgeText.appendChild(badgeSub);
+    badge.appendChild(badgeIcon);
+    badge.appendChild(badgeText);
+    stageWrap.appendChild(badge);
+
+    const hudChip = el("div", "hud-chip", "F01/24 | 24 FPS | 020 DEG");
+    hudChip.id = "hudChip";
+    stageWrap.appendChild(hudChip);
+
+    const toastEl = el("div", "status-toast");
+    toastEl.id = "statusToast";
+    stageWrap.appendChild(toastEl);
+
+    let toastTimer = null;
+    function showToast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add("show");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2600);
+    }
+
+    const footer = el("div", "stage-footer");
+    const hintBox = el("div", "hint-box", "1-9 / [ ]: MOTION | DRAG: 360 | F: FACE | B: BOUNCE | SPACE: PLAY");
+    hintBox.id = "hintBox";
+    const rotGrp = el("div", "touch-rot-group");
+    const btnBounce = el("button", "px-btn pink", "BOUNCE");
+    btnBounce.type = "button";
+    btnBounce.id = "btnBounce";
+    const btnRotL = el("button", "px-btn", "<3D");
+    btnRotL.type = "button";
+    btnRotL.id = "btnRotL";
+    const btnRotR = el("button", "px-btn", "3D>");
+    btnRotR.type = "button";
+    btnRotR.id = "btnRotR";
+    rotGrp.appendChild(btnBounce);
+    rotGrp.appendChild(btnRotL);
+    rotGrp.appendChild(btnRotR);
+    footer.appendChild(hintBox);
+    footer.appendChild(rotGrp);
+    stageWrap.appendChild(footer);
+
+    // === RIGHT STUDIO PANEL ===
+    const panel = el("aside", "panel");
+
+    // 1. Arbitrary-N Motion Shelf + Dynamic Timeline
+    const motionShelf = createMotionShelf({
+      onSelect: (id) => engine.selectMotion(id),
+      onStep: (d) => engine.stepMotion(d),
+      getAssetSrc: (k) => engine.getAssetSrc(k),
+    });
+    const timeline = createTimelineScrubber({
+      onScrub: (f) => engine.setFrame(f),
+    });
+    motionShelf.el.appendChild(timeline.el);
+    panel.appendChild(motionShelf.el);
+
+    // 2. Render Style & Pixel Feel
+    let dotSlider = null;
+    if (opts.showRenderModes) {
+      const sec = el("div", "panel-section");
+      const sh = el("div", "sec-head");
+      const sl = el("div", "sec-head-left");
+      const ic = el("img", "px-ico"); ic.setAttribute("data-ico", "ico_outline"); ic.alt = "render";
+      sl.appendChild(ic);
+      sl.appendChild(el("span", "", "RENDER STYLE & PIXEL FEEL"));
+      sh.appendChild(sl);
+      sec.appendChild(sh);
+
+      const mgrid = el("div", "mode-grid");
+      [
+        ["0", "PIXEL+AA"],
+        ["1", "RETRO PX"],
+        ["2", "SMOOTH AA"],
+        ["3", "SILKY 3D"],
+      ].forEach(([rm, txt]) => {
+        const b = el("button", "px-btn", txt);
+        b.type = "button";
+        b.setAttribute("data-rmode", rm);
+        b.addEventListener("click", () => engine.setRenderMode(Number(rm)));
+        mgrid.appendChild(b);
+      });
+      sec.appendChild(mgrid);
+
+      dotSlider = createPixelSlider({
+        id: "slDotSize",
+        label: "DOT SIZE",
+        min: 1.0, max: 2.6, step: 0.05,
+        getVal: () => engine.getState().dotSize,
+        setVal: (v) => engine.setDotSize(v),
+        formatVal: (v) => v.toFixed(2),
+        actionText: "1:1",
+        actionId: "btnDotReset",
+        onAction: () => engine.toggleDotPreset(),
+      });
+      dotSlider.el.style.paddingTop = "6px";
+      dotSlider.el.style.paddingBottom = "0";
+      dotSlider.el.style.borderBottom = "none";
+      sec.appendChild(dotSlider.el);
+      panel.appendChild(sec);
+    }
+
+    // 3. View Angles
+    if (opts.showViewAngles) {
+      const sec = el("div", "panel-section");
+      const sh = el("div", "sec-head");
+      const sl = el("div", "sec-head-left");
+      const ic = el("img", "px-ico"); ic.setAttribute("data-ico", "ico_cam"); ic.alt = "camera";
+      sl.appendChild(ic);
+      sl.appendChild(el("span", "", "VIEW ANGLES"));
+      sh.appendChild(sl);
+      sec.appendChild(sh);
+
+      const pgrid = el("div", "preset-grid");
+      [
+        ["0", "FRONT"], ["24", "3/4 L"], ["90", "L SIDE"],
+        ["180", "BACK"], ["270", "R SIDE"], ["336", "3/4 R"],
+      ].forEach(([deg, txt]) => {
+        const b = el("button", "px-btn", txt);
+        b.type = "button";
+        b.setAttribute("data-angle", deg);
+        b.addEventListener("click", () => engine.setAngleDeg(Number(deg)));
+        pgrid.appendChild(b);
+      });
+      sec.appendChild(pgrid);
+      panel.appendChild(sec);
+    }
+
+    // 4. Anim & 3D Controls
+    let fpsSlider, pitchSlider, spacingSlider, zoomSlider;
+    if (opts.showSliders) {
+      const sec = el("div", "panel-section");
+      const sh = el("div", "sec-head");
+      const sl = el("div", "sec-head-left");
+      const ic = el("img", "px-ico"); ic.setAttribute("data-ico", "ico_layers"); ic.alt = "controls";
+      sl.appendChild(ic);
+      sl.appendChild(el("span", "", "ANIM & 3D CONTROLS"));
+      sh.appendChild(sl);
+      sec.appendChild(sh);
+
+      fpsSlider = createPixelSlider({
+        id: "slFps", label: "ANIM FPS", min: 6, max: 36, step: 1,
+        getVal: () => engine.getState().animFps,
+        setVal: (v) => engine.setFps(v),
+        formatVal: (v) => String(Math.round(v)),
+        actionText: "PLAY", actionId: "btnPlayAnim",
+        onAction: () => engine.togglePlay(),
+      });
+      pitchSlider = createPixelSlider({
+        id: "slSquash", label: "PITCH", ariaLabel: "Camera Pitch Angle", min: 15, max: 90, step: 1,
+        getVal: () => engine.getState().pitchDeg,
+        setVal: (v) => engine.setPitchDeg(v),
+        formatVal: (v) => String(Math.round(v)) + "°",
+        actionText: "TOP", actionId: "btnTopView",
+        onAction: () => engine.toggleTopView(),
+      });
+      spacingSlider = createPixelSlider({
+        id: "slSpacing", label: "SPACING", min: 0.5, max: 2.2, step: 0.05,
+        getVal: () => engine.getState().spacing,
+        setVal: (v) => engine.setSpacing(v),
+        formatVal: (v) => v.toFixed(2),
+        actionText: "SPREAD", actionId: "btnSpread",
+        onAction: () => engine.toggleSpread(),
+      });
+      zoomSlider = createPixelSlider({
+        id: "slZoom", label: "ZOOM", min: 0.8, max: 3.2, step: 0.05,
+        getVal: () => engine.getState().zoom,
+        setVal: (v) => engine.setZoom(v),
+        formatVal: (v) => v.toFixed(2) + "x",
+        actionText: "FACE", actionId: "btnFaceZoom",
+        onAction: () => engine.toggleFaceFocus(),
+      });
+
+      sec.appendChild(fpsSlider.el);
+      sec.appendChild(pitchSlider.el);
+      sec.appendChild(spacingSlider.el);
+      sec.appendChild(zoomSlider.el);
+      panel.appendChild(sec);
+    }
+
+    // 5. Display & Effects Toggles
+    let btnAutoSpin, btnFx, btnOutline, btnTheme, txtTheme, btnSpring, btnReset;
+    if (opts.showToggles) {
+      const sec = el("div", "panel-section");
+      const sh = el("div", "sec-head");
+      const sl = el("div", "sec-head-left");
+      const ic = el("img", "px-ico"); ic.setAttribute("data-ico", "ico_theme"); ic.alt = "style";
+      sl.appendChild(ic);
+      sl.appendChild(el("span", "", "DISPLAY & EFFECTS"));
+      sh.appendChild(sl);
+      sec.appendChild(sh);
+
+      const trow = el("div", "toggle-row");
+      btnAutoSpin = el("button", "px-btn active"); btnAutoSpin.type = "button"; btnAutoSpin.id = "btnAutoSpin";
+      btnAutoSpin.appendChild(el("span", "", "SPIN: ON"));
+      btnAutoSpin.addEventListener("click", () => engine.toggleFlag("autoSpin"));
+
+      btnFx = el("button", "px-btn active"); btnFx.type = "button"; btnFx.id = "btnFx";
+      btnFx.appendChild(el("span", "", "FX: ON"));
+      btnFx.addEventListener("click", () => engine.toggleFlag("fxOn"));
+
+      btnOutline = el("button", "px-btn active"); btnOutline.type = "button"; btnOutline.id = "btnOutline";
+      const icOut = el("img", "px-ico"); icOut.setAttribute("data-ico", "ico_outline"); icOut.alt = "";
+      btnOutline.appendChild(icOut);
+      btnOutline.appendChild(el("span", "", "OUTLINE: ON"));
+      btnOutline.addEventListener("click", () => engine.toggleFlag("outlineOn"));
+
+      btnTheme = el("button", "px-btn"); btnTheme.type = "button"; btnTheme.id = "btnTheme";
+      const icTh = el("img", "px-ico"); icTh.setAttribute("data-ico", "ico_theme"); icTh.alt = "";
+      txtTheme = el("span", "", "ICE LAB"); txtTheme.id = "txtTheme";
+      btnTheme.appendChild(icTh);
+      btnTheme.appendChild(txtTheme);
+      btnTheme.addEventListener("click", () => engine.cycleTheme());
+
+      btnSpring = el("button", "px-btn active"); btnSpring.type = "button"; btnSpring.id = "btnSpring";
+      btnSpring.appendChild(el("span", "", "SPRING: ON"));
+      btnSpring.addEventListener("click", () => engine.toggleFlag("springOn"));
+
+      btnReset = el("button", "px-btn gold"); btnReset.type = "button"; btnReset.id = "btnReset";
+      const icRs = el("img", "px-ico"); icRs.setAttribute("data-ico", "ico_reset"); icRs.alt = "";
+      btnReset.appendChild(icRs);
+      btnReset.appendChild(el("span", "", "RESET"));
+      btnReset.addEventListener("click", () => engine.resetAll());
+
+      [btnAutoSpin, btnFx, btnOutline, btnTheme, btnSpring, btnReset].forEach((b) => trow.appendChild(b));
+      sec.appendChild(trow);
+      panel.appendChild(sec);
+    }
+
+    // 6. Portable Package (.ap3d) Load / Merge / Export
+    let fileIO = null;
+    if (opts.showFileIO && global.AP3DCodec) {
+      fileIO = createFileIOControls({
+        onLoadFile: async (file) => {
+          try {
+            await engine.loadAP3DFile(file, { merge: false });
+            showToast(`LOADED: ${file.name}`);
+          } catch (err) {
+            showToast(`LOAD ERROR: ${err.message || err}`);
+          }
+        },
+        onMergeFile: async (file) => {
+          try {
+            const added = await engine.loadAP3DFile(file, { merge: true });
+            showToast(`MERGED +${added} MOTIONS FROM ${file.name}`);
+          } catch (err) {
+            showToast(`MERGE ERROR: ${err.message || err}`);
+          }
+        },
+        onExport: async () => {
+          try {
+            const info = await engine.exportAP3D();
+            showToast(`EXPORTED ${info.filename} (${Math.round(info.bytes / 1024)} KB)`);
+          } catch (err) {
+            showToast(`EXPORT ERROR: ${err.message || err}`);
+          }
+        },
+      });
+      panel.appendChild(fileIO.el);
+      emptyLoadBtn.addEventListener("click", () => fileIO.triggerLoad());
+    }
+
+    shell.appendChild(stageWrap);
+    shell.appendChild(panel);
+    rootEl.appendChild(shell);
+
+    // Attach stage drag-and-drop for .ap3d files
+    let dragCounter = 0;
+    stageWrap.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      dragCounter++;
+      dropOverlay.classList.add("active");
+    });
+    stageWrap.addEventListener("dragover", (e) => { e.preventDefault(); });
+    stageWrap.addEventListener("dragleave", () => {
+      dragCounter = Math.max(0, dragCounter - 1);
+      if (dragCounter === 0) dropOverlay.classList.remove("active");
+    });
+    stageWrap.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dropOverlay.classList.remove("active");
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file) return;
+      try {
+        if (e.shiftKey) {
+          const added = await engine.loadAP3DFile(file, { merge: true });
+          showToast(`MERGED +${added} MOTIONS FROM ${file.name}`);
+        } else {
+          await engine.loadAP3DFile(file, { merge: false });
+          showToast(`LOADED: ${file.name}`);
+        }
+      } catch (err) {
+        showToast(`DROP ERROR: ${err.message || err}`);
+      }
+    });
+
+    // Wire hold buttons & canvas interactions
+    btnBounce.addEventListener("click", () => engine.triggerBounce());
+    function bindHold(btn, dir) {
+      const start = (e) => { e.preventDefault(); engine.setHoldRotDir(dir); };
+      const stop = () => { if (engine.getState().holdRotDir === dir) engine.setHoldRotDir(0); };
+      btn.addEventListener("pointerdown", start);
+      window.addEventListener("pointerup", stop);
+      window.addEventListener("pointercancel", stop);
+    }
+    bindHold(btnRotL, -1);
+    bindHold(btnRotR, 1);
+
+    function hydrateIcons() {
+      rootEl.querySelectorAll("[data-ico]").forEach((img) => {
+        const key = img.getAttribute("data-ico");
+        const src = engine.getAssetSrc(key);
+        if (src) {
+          img.src = src;
+          img.style.visibility = "visible";
+        } else {
+          img.style.visibility = "hidden";
+        }
+      });
+    }
+
+    function syncAll() {
+      const st = engine.getState();
+      if (!st) return;
+      const cfg = engine.getConfig() || {};
+      const motions = engine.getMotions() || [];
+
+      emptyBanner.style.display = motions.length === 0 ? "block" : "none";
+      badgeTitle.textContent = cfg.title || "ANIME PSEUDO-3D";
+      badgeSub.textContent = cfg.subtitle || "WEBGL 2-PASS SPRITE STACK ENGINE";
+      if (cfg.badge_icon) badgeIcon.setAttribute("data-ico", cfg.badge_icon);
+      if (cfg.title) document.title = cfg.title;
+
+      motionShelf.setActive(st.motion);
+
+      rootEl.querySelectorAll("[data-rmode]").forEach((btn) => {
+        btn.classList.toggle("active", Number(btn.getAttribute("data-rmode")) === st.renderMode);
+      });
+
+      if (dotSlider) dotSlider.sync();
+      if (fpsSlider) {
+        fpsSlider.sync();
+        fpsSlider.actionBtn.textContent = st.animPlaying ? "PLAY" : "STOP";
+        fpsSlider.actionBtn.classList.toggle("active", st.animPlaying);
+      }
+      if (pitchSlider) {
+        pitchSlider.sync();
+        pitchSlider.actionBtn.classList.toggle("active", st.pitchDeg >= 89);
+      }
+      if (spacingSlider) {
+        spacingSlider.sync();
+        spacingSlider.actionBtn.classList.toggle("active", st.spacing >= 1.80);
+      }
+      if (zoomSlider) {
+        zoomSlider.sync();
+        zoomSlider.actionBtn.classList.toggle("active", st.faceFocus);
+      }
+
+      if (btnAutoSpin) {
+        btnAutoSpin.classList.toggle("active", st.autoSpin);
+        btnAutoSpin.querySelector("span").textContent = st.autoSpin ? "SPIN: ON" : "SPIN: OFF";
+      }
+      if (btnFx) {
+        btnFx.classList.toggle("active", st.fxOn);
+        btnFx.querySelector("span").textContent = st.fxOn ? "FX: ON" : "FX: OFF";
+      }
+      if (btnOutline) {
+        btnOutline.classList.toggle("active", st.outlineOn);
+        btnOutline.querySelector("span").textContent = st.outlineOn ? "OUTLINE: ON" : "OUTLINE: OFF";
+      }
+      if (btnSpring) {
+        btnSpring.classList.toggle("active", st.springOn);
+        btnSpring.querySelector("span").textContent = st.springOn ? "SPRING: ON" : "SPRING: OFF";
+      }
+      if (txtTheme) {
+        txtTheme.textContent = engine.getThemeName();
+      }
+    }
+
+    function syncScene() {
+      const st = engine.getState();
+      const motions = engine.getMotions();
+      motionShelf.refresh(motions, st.motion);
+      const curM = engine.getActiveMotion();
+      timeline.update(st.manualFrame, curM ? (curM.frames || 24) : 1);
+      syncAll();
+      hydrateIcons();
+    }
+
+    function updateHud(text) {
+      hudChip.textContent = text;
+    }
+
+    function updateTimeline(fIdx, fc) {
+      timeline.update(fIdx, fc);
+    }
+
+    return {
+      canvas,
+      stageWrap,
+      hudChip,
+      showToast,
+      syncScene,
+      syncAll,
+      updateHud,
+      updateTimeline,
+      hydrateIcons,
+    };
+  }
+
+  global.AnimeUIKit = {
+    createPixelSlider,
+    createMotionShelf,
+    createTimelineScrubber,
+    createFileIOControls,
+    mountStudioUI,
+  };
+})(window);
+
+</script>
+  <script>
+window.SCENE_CONFIG = {"schema_version":"1.1","title":"ANIME PSEUDO-3D PLAYER","subtitle":"DROP .AP3D FILE OR CLICK LOAD","motions":[],"assetLinear":{}};
+window.SPRITE_ASSETS = {};
+</script>
+  <script>
+/* Anime Pseudo-3D WebGL 2-Pass Sprite-Stack Engine (Reusable, Character-Agnostic & Hot-Reloadable)
+ *
+ * Public Factory API:
+ *   const engine = window.AnimeStackEngine.create({
+ *     canvas, config, assets,
+ *     onHudUpdate, onTimelineUpdate, onStateChange, onSceneChange
+ *   });
+ *
+ * Supports:
+ *   - Continuous 0.001-deg GPU rotation + true 3D orthographic elevation (`y = rot.y * sinP - z * cosP * spacing`)
+ *   - 2x interleaved sub-slices + 2x-SSAA FBO + 4 live render modes (SMOOTH AA, PIXEL+AA, RETRO PX, SILKY 3D)
+ *   - Arbitrary-N animations (1 static model, 2, 9, 24, 50+ motions) + runtime `addMotions()` & `loadScene()`
+ *   - Multi-object 3D companion sprite-stack FBOs with exact camera-angle Z-sorting
+ *   - Portable `.ap3d` binary export, load, and merge via `window.AP3DCodec`
+ *   - Automatic studio mounting via `window.AnimeUIKit.mountStudioUI` when `#appRoot` is present
+ */
+(function (global) {
+  "use strict";
+
+  const TWO_PI = Math.PI * 2;
+  const THEMES = [
+    { name: "DEEP SEA", bg: [13/255, 22/255, 48/255], grid: [24/255, 39/255, 80/255], star: [100/255, 181/255, 246/255], starHi: [212/255, 240/255, 255/255], outline: [34/255, 38/255, 82/255] },
+    { name: "ICE LAB",  bg: [223/255, 233/255, 248/255], grid: [198/255, 214/255, 238/255], star: [107/255, 143/255, 212/255], starHi: [1, 1, 1], outline: [36/255, 42/255, 88/255] },
+    { name: "MIDNIGHT", bg: [18/255, 15/255, 36/255], grid: [34/255, 28/255, 66/255], star: [129/255, 140/255, 248/255], starHi: [254/255, 240/255, 138/255], outline: [24/255, 20/255, 56/255] },
+  ];
+
+  function createEngine(options) {
+    const opts = options || {};
+    const canvas = opts.canvas;
+    if (!canvas) throw new Error("AnimeStackEngine.create requires a <canvas> element");
+
+    const gl = canvas.getContext("webgl", {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      premultipliedAlpha: true,
+      preserveDrawingBuffer: true,
+    });
+    if (!gl) throw new Error("WebGL unavailable in this browser");
+
+    const hasDeriv = !!gl.getExtension("OES_standard_derivatives");
+
+    function compileShader(type, src) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        throw new Error("Shader compile error: " + gl.getShaderInfoLog(sh));
+      }
+      return sh;
+    }
+
+    function createProgram(vsSrc, fsSrc) {
+      const p = gl.createProgram();
+      gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsSrc));
+      gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+        throw new Error("Program link error: " + gl.getProgramInfoLog(p));
+      }
+      return p;
+    }
+
+    const bgProg = createProgram(
+      `
+      attribute vec2 aPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = aPos * 0.5 + 0.5;
+        gl_Position = vec4(aPos, 0.0, 1.0);
+      }
+      `,
+      `
+      precision mediump float;
+      varying vec2 vUv;
+      uniform vec2 uRes;
+      uniform vec3 uBg;
+      uniform vec3 uGrid;
+      uniform vec3 uStar;
+      uniform vec3 uStarHi;
+      uniform float uTime;
+
+      float hash21(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
+
+      void main() {
+        vec2 px = vUv * uRes;
+        vec2 dv = vUv - vec2(0.5, 0.5);
+        float vig = 1.0 - dot(dv, dv) * 0.28;
+        vec3 col = uBg * clamp(vig, 0.80, 1.05);
+
+        float stepPx = 32.0;
+        vec2 g = mod(px - 0.5 * mod(uRes, stepPx), stepPx);
+        if (g.x < 1.2 || g.y < 1.2) {
+          col = mix(col, uGrid, 0.65);
+        }
+
+        vec2 cell = floor(px / 48.0);
+        vec2 loc = fract(px / 48.0) * 48.0;
+        float h = hash21(cell);
+        if (h > 0.82) {
+          vec2 spos = vec2(8.0 + hash21(cell + 7.1) * 32.0, 8.0 + hash21(cell + 19.3) * 32.0);
+          float sz = (h > 0.94) ? 2.6 : 1.6;
+          if (abs(loc.x - spos.x) < sz * 0.5 && abs(loc.y - spos.y) < sz * 0.5) {
+            float tw = 0.65 + 0.35 * sin(uTime * 2.4 + h * 40.0);
+            col = mix(col, (h > 0.92) ? uStarHi : uStar, tw);
+          }
+        }
+        gl_FragColor = vec4(col, 1.0);
+      }
+      `
+    );
+
+    const stackProg = createProgram(
+      `
+      attribute vec2 aCorner;
+      attribute vec3 aSlice;
+
+      uniform vec2 uFboSize;
+      uniform vec2 uPivot;
+      uniform vec2 uSliceDim;
+      uniform float uAngle;
+      uniform float uSquash;
+      uniform float uSpacing;
+      uniform vec2 uSpring;
+
+      varying vec2 vLocalUV;
+      varying vec2 vTileOrigin;
+
+      void main() {
+        vec2 p = aCorner * uSliceDim;
+        float ca = cos(uAngle);
+        float sa = sin(uAngle);
+        vec2 rot = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
+        vec2 stacked = vec2(rot.x, rot.y * uSquash - aSlice.x * uSpacing);
+        stacked *= uSpring;
+
+        vec2 pos = uPivot + stacked;
+        vec2 ndc = (pos / uFboSize) * 2.0 - 1.0;
+        ndc.y = -ndc.y;
+        gl_Position = vec4(ndc, 0.0, 1.0);
+
+        vLocalUV = aCorner + 0.5;
+        vTileOrigin = aSlice.yz;
+      }
+      `,
+      (hasDeriv ? "#extension GL_OES_standard_derivatives : enable\n" : "") +
+      `
+      precision highp float;
+      uniform sampler2D uAtlas;
+      uniform vec2 uSliceDim;
+      uniform vec2 uAtlasGrid;
+      uniform int uMode;
+
+      varying vec2 vLocalUV;
+      varying vec2 vTileOrigin;
+
+      vec4 fetchTexel(vec2 tc) {
+        vec2 c = clamp(tc, vec2(0.0), uSliceDim - vec2(1.0));
+        vec2 uv = (vTileOrigin + (c + 0.5) / uSliceDim) / uAtlasGrid;
+        return texture2D(uAtlas, uv);
+      }
+
+      void main() {
+        vec2 tCoord = vLocalUV * uSliceDim - 0.5;
+        if (uMode == 2) {
+          vec4 c = fetchTexel(floor(tCoord + 0.5));
+          if (c.a < 0.5) discard;
+          gl_FragColor = vec4(c.rgb, 1.0);
+          return;
+        }
+
+        vec2 fl = floor(tCoord);
+        vec2 fr = fract(tCoord);
+        vec2 w;
+        if (uMode == 0) {
+          ` + (hasDeriv ? `
+          vec2 fw = clamp(fwidth(tCoord), vec2(0.05), vec2(0.95));
+          w = clamp((fr - 0.5) / fw + 0.5, 0.0, 1.0);
+          ` : `
+          w = smoothstep(0.28, 0.72, fr);
+          `) + `
+        } else {
+          w = fr * fr * (3.0 - 2.0 * fr);
+        }
+
+        vec4 c00 = fetchTexel(fl);
+        vec4 c10 = fetchTexel(fl + vec2(1.0, 0.0));
+        vec4 c01 = fetchTexel(fl + vec2(0.0, 1.0));
+        vec4 c11 = fetchTexel(fl + vec2(1.0, 1.0));
+
+        float w00 = (1.0 - w.x) * (1.0 - w.y);
+        float w10 = w.x * (1.0 - w.y);
+        float w01 = (1.0 - w.x) * w.y;
+        float w11 = w.x * w.y;
+
+        float a = c00.a * w00 + c10.a * w10 + c01.a * w01 + c11.a * w11;
+        if (a < 0.06) discard;
+
+        vec3 rgbSum = c00.rgb * (c00.a * w00) + c10.rgb * (c10.a * w10)
+                    + c01.rgb * (c01.a * w01) + c11.rgb * (c11.a * w11);
+        vec3 rgb = rgbSum / max(a, 1e-4);
+
+        float outA = (uMode == 0) ? smoothstep(0.24, 0.72, a) : smoothstep(0.18, 0.78, a);
+        if (outA < 0.02) discard;
+
+        gl_FragColor = vec4(rgb * outA, outA);
+      }
+      `
+    );
+
+    const spriteProg = createProgram(
+      `
+      attribute vec2 aPos;
+      uniform vec4 uRect;
+      uniform vec2 uRes;
+      uniform float uRot;
+      varying vec2 vUv;
+      void main() {
+        vec2 local = aPos * (uRect.zw * 0.5);
+        float cr = cos(uRot);
+        float sr = sin(uRot);
+        vec2 rot = vec2(local.x * cr - local.y * sr, local.x * sr + local.y * cr);
+        vec2 p = uRect.xy + rot;
+        vec2 ndc = (p / uRes) * 2.0 - 1.0;
+        ndc.y = -ndc.y;
+        gl_Position = vec4(ndc, 0.0, 1.0);
+        vUv = aPos * 0.5 + 0.5;
+      }
+      `,
+      `
+      precision mediump float;
+      uniform sampler2D uTex;
+      uniform float uAlpha;
+      uniform vec3 uTint;
+      varying vec2 vUv;
+      void main() {
+        vec4 c = texture2D(uTex, vUv);
+        if (c.a < 0.01) discard;
+        float a = c.a * uAlpha;
+        gl_FragColor = vec4(c.rgb * uTint * a, a);
+      }
+      `
+    );
+
+    const compProg = createProgram(
+      `
+      attribute vec2 aPos;
+      uniform vec4 uRect;
+      uniform vec2 uRes;
+      varying vec2 vUv;
+      void main() {
+        vec2 p = uRect.xy + aPos * (uRect.zw * 0.5);
+        vec2 ndc = (p / uRes) * 2.0 - 1.0;
+        ndc.y = -ndc.y;
+        gl_Position = vec4(ndc, 0.0, 1.0);
+        vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5);
+      }
+      `,
+      (hasDeriv ? "#extension GL_OES_standard_derivatives : enable\n" : "") +
+      `
+      precision highp float;
+      uniform sampler2D uFboTex;
+      uniform vec2 uTexel;
+      uniform vec2 uVirtSize;
+      uniform float uOutRad;
+      uniform float uOutOn;
+      uniform vec3 uOutCol;
+      uniform int uCompMode;
+      uniform float uDotSize;
+      varying vec2 vUv;
+
+      vec4 sampleCell(vec2 cellIdx, vec2 gridDim) {
+        vec2 uv = (clamp(cellIdx, vec2(0.0), gridDim - vec2(1.0)) + 0.5) / gridDim;
+        return texture2D(uFboTex, uv);
+      }
+
+      vec4 samplePixelAA(vec2 pCoord, vec2 gridDim) {
+        vec2 fl = floor(pCoord - 0.5);
+        vec2 fr = fract(pCoord - 0.5);
+        ` + (hasDeriv ? `
+        vec2 fw = clamp(fwidth(pCoord) * 1.15, vec2(0.04), vec2(0.42));
+        vec2 w = clamp((fr - 0.5) / fw + 0.5, 0.0, 1.0);
+        ` : `
+        vec2 w = smoothstep(0.36, 0.64, fr);
+        `) + `
+        vec4 c00 = sampleCell(fl, gridDim);
+        vec4 c10 = sampleCell(fl + vec2(1.0, 0.0), gridDim);
+        vec4 c01 = sampleCell(fl + vec2(0.0, 1.0), gridDim);
+        vec4 c11 = sampleCell(fl + vec2(1.0, 1.0), gridDim);
+        return mix(mix(c00, c10, w.x), mix(c01, c11, w.x), w.y);
+      }
+
+      void main() {
+        if (uCompMode == 0 || uCompMode == 1) {
+          vec2 gridDim = uVirtSize / max(uDotSize, 1.0);
+          vec2 pCoord = vUv * gridDim;
+          vec2 cell = floor(pCoord);
+
+          vec4 fg;
+          float outA = 0.0;
+          if (uCompMode == 1) {
+            fg = sampleCell(cell, gridDim);
+            float solid = step(0.42, fg.a);
+            if (solid > 0.5) {
+              vec3 rgb = fg.rgb / max(fg.a, 1e-4);
+              rgb = floor(rgb * 28.0 + 0.5) / 28.0;
+              fg = vec4(rgb, 1.0);
+            } else {
+              fg = vec4(0.0);
+            }
+            if (uOutOn > 0.5) {
+              float m = max(
+                max(sampleCell(cell + vec2( 1.0,  0.0), gridDim).a, sampleCell(cell + vec2(-1.0,  0.0), gridDim).a),
+                max(sampleCell(cell + vec2( 0.0,  1.0), gridDim).a, sampleCell(cell + vec2( 0.0, -1.0), gridDim).a)
+              );
+              outA = step(0.42, m);
+            }
+          } else {
+            fg = samplePixelAA(pCoord, gridDim);
+            float aFirm = smoothstep(0.16, 0.68, fg.a);
+            vec3 rgb = fg.rgb / max(fg.a, 1e-4);
+            rgb = mix(rgb, floor(rgb * 42.0 + 0.5) / 42.0, 0.35);
+            fg = vec4(rgb * aFirm, aFirm);
+
+            if (uOutOn > 0.5) {
+              float m = aFirm;
+              m = max(m, samplePixelAA(pCoord + vec2( 1.0,  0.0), gridDim).a);
+              m = max(m, samplePixelAA(pCoord + vec2(-1.0,  0.0), gridDim).a);
+              m = max(m, samplePixelAA(pCoord + vec2( 0.0,  1.0), gridDim).a);
+              m = max(m, samplePixelAA(pCoord + vec2( 0.0, -1.0), gridDim).a);
+              float md = max(
+                max(samplePixelAA(pCoord + vec2( 0.72,  0.72), gridDim).a, samplePixelAA(pCoord + vec2(-0.72,  0.72), gridDim).a),
+                max(samplePixelAA(pCoord + vec2( 0.72, -0.72), gridDim).a, samplePixelAA(pCoord + vec2(-0.72, -0.72), gridDim).a)
+              );
+              m = max(m, md * 0.82);
+              outA = smoothstep(0.22, 0.64, m);
+            }
+          }
+          if (fg.a < 0.01 && outA < 0.01) discard;
+          vec3 outPremul = uOutCol * outA;
+          gl_FragColor = vec4(fg.rgb + outPremul * (1.0 - fg.a), fg.a + outA * (1.0 - fg.a));
+          return;
+        }
+
+        vec4 fg = texture2D(uFboTex, vUv);
+        if (uOutOn < 0.5) {
+          if (fg.a < 0.01) discard;
+          gl_FragColor = fg;
+          return;
+        }
+
+        vec2 d = uTexel * uOutRad;
+        vec2 dd = d * 0.70710678;
+        float m = fg.a;
+        m = max(m, texture2D(uFboTex, vUv + vec2( d.x,  0.0)).a);
+        m = max(m, texture2D(uFboTex, vUv + vec2(-d.x,  0.0)).a);
+        m = max(m, texture2D(uFboTex, vUv + vec2( 0.0,  d.y)).a);
+        m = max(m, texture2D(uFboTex, vUv + vec2( 0.0, -d.y)).a);
+        m = max(m, texture2D(uFboTex, vUv + vec2( dd.x,  dd.y)).a);
+        m = max(m, texture2D(uFboTex, vUv + vec2(-dd.x,  dd.y)).a);
+        m = max(m, texture2D(uFboTex, vUv + vec2( dd.x, -dd.y)).a);
+        m = max(m, texture2D(uFboTex, vUv + vec2(-dd.x, -dd.y)).a);
+
+        float outA = smoothstep(0.18, 0.62, m);
+        if (outA < 0.01) discard;
+        vec3 outPremul = uOutCol * outA;
+        gl_FragColor = vec4(fg.rgb + outPremul * (1.0 - fg.a), fg.a + outA * (1.0 - fg.a));
+      }
+      `
+    );
+
+    const quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -1, -1,  1, -1, -1,  1,
+      -1,  1,  1, -1,  1,  1,
+    ]), gl.STATIC_DRAW);
+
+    const bgLoc = {
+      aPos: gl.getAttribLocation(bgProg, "aPos"),
+      uRes: gl.getUniformLocation(bgProg, "uRes"),
+      uBg: gl.getUniformLocation(bgProg, "uBg"),
+      uGrid: gl.getUniformLocation(bgProg, "uGrid"),
+      uStar: gl.getUniformLocation(bgProg, "uStar"),
+      uStarHi: gl.getUniformLocation(bgProg, "uStarHi"),
+      uTime: gl.getUniformLocation(bgProg, "uTime"),
+    };
+    const stLoc = {
+      aCorner: gl.getAttribLocation(stackProg, "aCorner"),
+      aSlice: gl.getAttribLocation(stackProg, "aSlice"),
+      uFboSize: gl.getUniformLocation(stackProg, "uFboSize"),
+      uPivot: gl.getUniformLocation(stackProg, "uPivot"),
+      uSliceDim: gl.getUniformLocation(stackProg, "uSliceDim"),
+      uAngle: gl.getUniformLocation(stackProg, "uAngle"),
+      uSquash: gl.getUniformLocation(stackProg, "uSquash"),
+      uSpacing: gl.getUniformLocation(stackProg, "uSpacing"),
+      uSpring: gl.getUniformLocation(stackProg, "uSpring"),
+      uAtlas: gl.getUniformLocation(stackProg, "uAtlas"),
+      uAtlasGrid: gl.getUniformLocation(stackProg, "uAtlasGrid"),
+      uMode: gl.getUniformLocation(stackProg, "uMode"),
+    };
+    const spLoc = {
+      aPos: gl.getAttribLocation(spriteProg, "aPos"),
+      uRect: gl.getUniformLocation(spriteProg, "uRect"),
+      uRes: gl.getUniformLocation(spriteProg, "uRes"),
+      uRot: gl.getUniformLocation(spriteProg, "uRot"),
+      uTex: gl.getUniformLocation(spriteProg, "uTex"),
+      uAlpha: gl.getUniformLocation(spriteProg, "uAlpha"),
+      uTint: gl.getUniformLocation(spriteProg, "uTint"),
+    };
+    const cpLoc = {
+      aPos: gl.getAttribLocation(compProg, "aPos"),
+      uRect: gl.getUniformLocation(compProg, "uRect"),
+      uRes: gl.getUniformLocation(compProg, "uRes"),
+      uFboTex: gl.getUniformLocation(compProg, "uFboTex"),
+      uTexel: gl.getUniformLocation(compProg, "uTexel"),
+      uVirtSize: gl.getUniformLocation(compProg, "uVirtSize"),
+      uOutRad: gl.getUniformLocation(compProg, "uOutRad"),
+      uOutOn: gl.getUniformLocation(compProg, "uOutOn"),
+      uOutCol: gl.getUniformLocation(compProg, "uOutCol"),
+      uCompMode: gl.getUniformLocation(compProg, "uCompMode"),
+      uDotSize: gl.getUniformLocation(compProg, "uDotSize"),
+    };
+
+    function buildStackVBO(sliceCount, cols, subLayersPerSlice) {
+      const totalQuads = sliceCount * subLayersPerSlice;
+      const data = new Float32Array(totalQuads * 6 * 5);
+      const corners = [
+        [-0.5, -0.5], [ 0.5, -0.5], [-0.5,  0.5],
+        [-0.5,  0.5], [ 0.5, -0.5], [ 0.5,  0.5],
+      ];
+      let ptr = 0;
+      for (let z = 0; z < sliceCount; z++) {
+        const col = z % cols;
+        const row = (z / cols) | 0;
+        for (let s = 0; s < subLayersPerSlice; s++) {
+          const zf = z + (s / subLayersPerSlice);
+          for (let k = 0; k < 6; k++) {
+            data[ptr++] = corners[k][0];
+            data[ptr++] = corners[k][1];
+            data[ptr++] = zf;
+            data[ptr++] = col;
+            data[ptr++] = row;
+          }
+        }
+      }
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      return { buf, count: totalQuads * 6 };
+    }
+
+    function createFboTarget(virtW, virtH, ss) {
+      const pxW = virtW * ss;
+      const pxH = virtH * ss;
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, pxW, pxH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const fboObj = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fboObj);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return { fbo: fboObj, tex, virtW, virtH, ss, pxW, pxH };
+    }
+
+    function disposeFbo(t) {
+      if (!t) return;
+      gl.deleteFramebuffer(t.fbo);
+      gl.deleteTexture(t.tex);
+    }
+
+    // Mutable active scene state (supports hot-swapping & runtime motion appending!)
+    let CFG = {};
+    let ASSET_MAP = {};
+    let ASSET_LINEAR = {};
+    let CHAR = { sliceW: 100, sliceH: 112, sliceCount: 160, atlasCols: 16, atlasRows: 10, yOffset: 0.0, fboVirtW: 196, fboVirtH: 440, fboPivotYOffset: 92, faceFocusZ: 104.0 };
+    let COMPANION_DEFS = {};
+    let MOTION_LIST = [];
+    let MOTION_BY_ID = {};
+    let DEFAULTS = { motion: "", animFps: 24, renderMode: 2, dotSize: 1.35, squash: 0.35, spacing: 1.0, zoom: 1.45, themeIdx: 1, angleDeg: 20.0 };
+    let DEFAULT_PITCH_DEG = 20;
+
+    let charVBO1x = null;
+    let charVBO2x = null;
+    let charFbo = null;
+    let CHAR_PIVOT_X = 98;
+    let companionGpu = {};
+
+    let images = {};
+    let loadedKeys = new Set();
+    let loadingKeys = new Set();
+    const gpuTexCache = new Map();
+    const staticTex = {};
+    let managedObjectUrls = [];
+
+    const state = {
+      motion: "",
+      motionSwitchTime: 0,
+      animPlaying: true,
+      animFps: 24,
+      animPhase: 0.0,
+      manualFrame: 0,
+      lastFrameIdx: 0,
+      renderMode: 2,
+      dotSize: 1.35,
+      springOn: true,
+      fxOn: true,
+      sqX: 1.0,
+      sqY: 1.0,
+      sqVx: 0.0,
+      sqVy: 0.0,
+      angle: (20 * Math.PI) / 180,
+      autoSpin: true,
+      spinSpeed: 0.42,
+      pitchDeg: 20,
+      squash: Math.sin((20 * Math.PI) / 180),
+      spacing: 1.0,
+      zoom: 1.45,
+      faceFocus: false,
+      outlineOn: true,
+      stageOn: true,
+      themeIdx: 1,
+      dragActive: false,
+      dragLastX: 0,
+      dragId: null,
+      holdRotDir: 0,
+    };
+
+    const keys = { left: false, right: false };
+
+    let callbacks = {
+      onHudUpdate: opts.onHudUpdate || null,
+      onTimelineUpdate: opts.onTimelineUpdate || null,
+      onStateChange: opts.onStateChange || null,
+      onSceneChange: opts.onSceneChange || null,
+    };
+
+    function notifyState() {
+      if (callbacks.onStateChange) callbacks.onStateChange();
+    }
+    function notifyScene() {
+      if (callbacks.onSceneChange) callbacks.onSceneChange();
+    }
+
+    function curMotionDef() {
+      return MOTION_BY_ID[state.motion] || MOTION_LIST[0] || null;
+    }
+    function curFrameCount() {
+      const m = curMotionDef();
+      return m ? (m.frames || 24) : 1;
+    }
+
+    function createStaticTexture(img, linear) {
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      const f = linear ? gl.LINEAR : gl.NEAREST;
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, f);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return tex;
+    }
+
+    function ensureImageLoaded(key, onReady) {
+      if (!ASSET_MAP[key]) return;
+      if (loadedKeys.has(key)) {
+        if (onReady) onReady(images[key]);
+        return;
+      }
+      if (loadingKeys.has(key)) return;
+      loadingKeys.add(key);
+      const img = new Image();
+      img.onload = () => {
+        images[key] = img;
+        loadedKeys.add(key);
+        loadingKeys.delete(key);
+        if (onReady) onReady(img);
+      };
+      img.src = ASSET_MAP[key];
+    }
+
+    function preloadMotion(motionId) {
+      const m = MOTION_BY_ID[motionId];
+      if (!m) return;
+      const fc = m.frames || 24;
+      for (let f = 0; f < fc; f++) {
+        ensureImageLoaded(`${m.keyPrefix}${String(f).padStart(2, "0")}`);
+      }
+      if (m.companion && COMPANION_DEFS[m.companion.id]) {
+        const cd = COMPANION_DEFS[m.companion.id];
+        const cfc = cd.frames || 24;
+        for (let f = 0; f < cfc; f++) {
+          ensureImageLoaded(`${cd.keyPrefix}${String(f).padStart(2, "0")}`);
+        }
+      }
+    }
+
+    function getAtlasTexture(key) {
+      if (gpuTexCache.has(key)) {
+        const tex = gpuTexCache.get(key);
+        gpuTexCache.delete(key);
+        gpuTexCache.set(key, tex);
+        return tex;
+      }
+      if (!loadedKeys.has(key)) {
+        ensureImageLoaded(key);
+        return null;
+      }
+      const img = images[key];
+      if (!img) return null;
+      const tex = createStaticTexture(img, false);
+      if (gpuTexCache.size >= 72) {
+        const oldestKey = gpuTexCache.keys().next().value;
+        gl.deleteTexture(gpuTexCache.get(oldestKey));
+        gpuTexCache.delete(oldestKey);
+      }
+      gpuTexCache.set(key, tex);
+      return tex;
+    }
+
+    function getStaticTex(key) {
+      if (staticTex[key]) return staticTex[key];
+      if (!ASSET_MAP[key]) return null;
+      if (!loadedKeys.has(key)) {
+        ensureImageLoaded(key, (img) => {
+          staticTex[key] = createStaticTexture(img, !!ASSET_LINEAR[key]);
+        });
+        return null;
+      }
+      staticTex[key] = createStaticTexture(images[key], !!ASSET_LINEAR[key]);
+      return staticTex[key];
+    }
+
+    function buildCompanionGpu(cid, cdef) {
+      const vw = cdef.fboVirtW || 96;
+      const vh = cdef.fboVirtH || 132;
+      companionGpu[cid] = {
+        def: cdef,
+        vbo1x: buildStackVBO(cdef.sliceCount, cdef.atlasCols, 1),
+        vbo2x: buildStackVBO(cdef.sliceCount, cdef.atlasCols, 2),
+        fbo: createFboTarget(vw, vh, 2),
+        pivotX: vw * 0.5,
+        pivotY: vh - Math.round(vh * 0.28),
+      };
+    }
+
+    function disposeSceneGpu() {
+      if (charVBO1x) gl.deleteBuffer(charVBO1x.buf);
+      if (charVBO2x) gl.deleteBuffer(charVBO2x.buf);
+      disposeFbo(charFbo);
+      charVBO1x = null; charVBO2x = null; charFbo = null;
+
+      for (const cid of Object.keys(companionGpu)) {
+        const cg = companionGpu[cid];
+        gl.deleteBuffer(cg.vbo1x.buf);
+        gl.deleteBuffer(cg.vbo2x.buf);
+        disposeFbo(cg.fbo);
+      }
+      companionGpu = {};
+
+      for (const tex of gpuTexCache.values()) gl.deleteTexture(tex);
+      gpuTexCache.clear();
+      for (const k of Object.keys(staticTex)) {
+        gl.deleteTexture(staticTex[k]);
+        delete staticTex[k];
+      }
+      images = {};
+      loadedKeys = new Set();
+      loadingKeys = new Set();
+
+      for (const u of managedObjectUrls) {
+        try { URL.revokeObjectURL(u); } catch (_) {}
+      }
+      managedObjectUrls = [];
+    }
+
+    function loadScene(newConfig, newAssets, objectUrls) {
+      disposeSceneGpu();
+      managedObjectUrls = Array.isArray(objectUrls) ? objectUrls.slice() : [];
+
+      CFG = JSON.parse(JSON.stringify(newConfig || {}));
+      ASSET_MAP = Object.assign({}, newAssets || {});
+      ASSET_LINEAR = Object.assign({}, CFG.assetLinear || {});
+      CHAR = Object.assign(
+        { sliceW: 100, sliceH: 112, sliceCount: 160, atlasCols: 16, atlasRows: 10, yOffset: 0.0, fboVirtW: 196, fboVirtH: 440, fboPivotYOffset: 92, faceFocusZ: 104.0 },
+        CFG.character || {}
+      );
+      COMPANION_DEFS = CFG.companions || {};
+      MOTION_LIST = Array.isArray(CFG.motions) ? CFG.motions : [];
+      MOTION_BY_ID = {};
+      for (const m of MOTION_LIST) MOTION_BY_ID[m.id] = m;
+
+      DEFAULTS = Object.assign(
+        { motion: MOTION_LIST[0] ? MOTION_LIST[0].id : "", animFps: 24, renderMode: 2, dotSize: 1.35, squash: 0.35, spacing: 1.0, zoom: 1.45, themeIdx: 1, angleDeg: 20.0 },
+        CFG.defaults || {}
+      );
+      if (DEFAULTS.motion && !MOTION_BY_ID[DEFAULTS.motion]) {
+        DEFAULTS.motion = MOTION_LIST[0] ? MOTION_LIST[0].id : "";
+      }
+      DEFAULT_PITCH_DEG = (typeof DEFAULTS.pitchDeg === "number")
+        ? Math.max(15, Math.min(90, Math.round(DEFAULTS.pitchDeg)))
+        : Math.max(15, Math.min(90, Math.round((Math.asin(Math.max(0.25, Math.min(1.0, DEFAULTS.squash))) * 180) / Math.PI)));
+
+      charVBO1x = buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 1);
+      charVBO2x = buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 2);
+      charFbo = createFboTarget(CHAR.fboVirtW, CHAR.fboVirtH, 2);
+      CHAR_PIVOT_X = charFbo.virtW * 0.5;
+
+      for (const [cid, cdef] of Object.entries(COMPANION_DEFS)) {
+        buildCompanionGpu(cid, cdef);
+      }
+
+      state.motion = DEFAULTS.motion;
+      state.motionSwitchTime = performance.now() * 0.001;
+      state.animPlaying = true;
+      state.animFps = DEFAULTS.animFps;
+      state.animPhase = 0;
+      state.manualFrame = 0;
+      state.lastFrameIdx = 0;
+      state.renderMode = DEFAULTS.renderMode;
+      state.dotSize = DEFAULTS.dotSize;
+      state.angle = (DEFAULTS.angleDeg * Math.PI) / 180;
+      state.pitchDeg = DEFAULT_PITCH_DEG;
+      state.squash = Math.sin((DEFAULT_PITCH_DEG * Math.PI) / 180);
+      state.spacing = DEFAULTS.spacing;
+      state.zoom = DEFAULTS.zoom;
+      state.faceFocus = false;
+      state.themeIdx = DEFAULTS.themeIdx;
+
+      // Preload static FX/UI sprites & active motion first
+      for (const key of Object.keys(ASSET_MAP)) {
+        if (!key.startsWith("anim_") && !key.startsWith("whale_")) {
+          ensureImageLoaded(key, (img) => {
+            staticTex[key] = createStaticTexture(img, !!ASSET_LINEAR[key]);
+          });
+        }
+      }
+      if (state.motion) preloadMotion(state.motion);
+      let preloadIdx = 0;
+      function preloadNextMotion() {
+        if (preloadIdx >= MOTION_LIST.length) return;
+        const m = MOTION_LIST[preloadIdx++];
+        if (m.id !== state.motion) preloadMotion(m.id);
+        setTimeout(preloadNextMotion, 120);
+      }
+      setTimeout(preloadNextMotion, 260);
+
+      notifyScene();
+    }
+
+    function addMotions(extraMotions, extraAssets, extraCompanions, extraLinear, objectUrls) {
+      if (Array.isArray(objectUrls)) {
+        managedObjectUrls.push(...objectUrls);
+      }
+      const keyRemap = {};
+      const prefix = `m${MOTION_LIST.length}_`;
+      for (const [k, src] of Object.entries(extraAssets || {})) {
+        if (!ASSET_MAP[k]) {
+          ASSET_MAP[k] = src;
+          if (extraLinear && extraLinear[k]) ASSET_LINEAR[k] = true;
+          keyRemap[k] = k;
+        } else if (ASSET_MAP[k] === src) {
+          keyRemap[k] = k;
+        } else {
+          let nk = prefix + k;
+          let n = 2;
+          while (ASSET_MAP[nk]) nk = `${prefix}${n++}_${k}`;
+          ASSET_MAP[nk] = src;
+          if (extraLinear && extraLinear[k]) ASSET_LINEAR[nk] = true;
+          keyRemap[k] = nk;
+        }
+      }
+
+      const compRemap = {};
+      for (const [cid, cdef] of Object.entries(extraCompanions || {})) {
+        let ncid = cid;
+        if (COMPANION_DEFS[ncid]) ncid = prefix + cid;
+        const cc = JSON.parse(JSON.stringify(cdef));
+        const sampleKey = `${cc.keyPrefix || ""}00`;
+        if (keyRemap[sampleKey] && keyRemap[sampleKey] !== sampleKey) {
+          cc.keyPrefix = keyRemap[sampleKey].slice(0, -2);
+        }
+        COMPANION_DEFS[ncid] = cc;
+        CFG.companions = COMPANION_DEFS;
+        buildCompanionGpu(ncid, cc);
+        compRemap[cid] = ncid;
+      }
+
+      let added = 0;
+      for (const m of extraMotions || []) {
+        const mc = JSON.parse(JSON.stringify(m));
+        let mid = mc.id || `motion_${MOTION_LIST.length + 1}`;
+        let suffix = 2;
+        while (MOTION_BY_ID[mid]) mid = `${mc.id}_${suffix++}`;
+        mc.id = mid;
+
+        const sampleKey = `${mc.keyPrefix || ""}00`;
+        if (keyRemap[sampleKey] && keyRemap[sampleKey] !== sampleKey) {
+          mc.keyPrefix = keyRemap[sampleKey].slice(0, -2);
+        }
+        if (mc.icon && keyRemap[mc.icon]) mc.icon = keyRemap[mc.icon];
+        if (mc.companion && mc.companion.id && compRemap[mc.companion.id]) {
+          mc.companion.id = compRemap[mc.companion.id];
+        }
+        if (mc.billboard && mc.billboard.assetKey && keyRemap[mc.billboard.assetKey]) {
+          mc.billboard.assetKey = keyRemap[mc.billboard.assetKey];
+        }
+
+        MOTION_LIST.push(mc);
+        MOTION_BY_ID[mc.id] = mc;
+        added++;
+      }
+      CFG.motions = MOTION_LIST;
+      CFG.assetLinear = ASSET_LINEAR;
+
+      if (added > 0) {
+        const newest = MOTION_LIST[MOTION_LIST.length - added];
+        selectMotion(newest.id);
+        notifyScene();
+      }
+      return added;
+    }
+
+    function impulseSquash(sx, sy) {
+      if (!state.springOn) return;
+      state.sqX = sx;
+      state.sqY = sy;
+      state.sqVx = 0;
+      state.sqVy = 0;
+    }
+
+    function stepSpring(dt) {
+      if (!state.springOn) {
+        state.sqX = 1.0; state.sqY = 1.0; state.sqVx = 0; state.sqVy = 0;
+        return;
+      }
+      const kSpring = 160;
+      const kDamp = 16;
+      state.sqVx += ((1 - state.sqX) * kSpring - state.sqVx * kDamp) * dt;
+      state.sqVy += ((1 - state.sqY) * kSpring - state.sqVy * kDamp) * dt;
+      state.sqX = Math.max(0.76, Math.min(1.26, state.sqX + state.sqVx * dt));
+      state.sqY = Math.max(0.76, Math.min(1.26, state.sqY + state.sqVy * dt));
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cw = Math.max(1, Math.floor(rect.width * dpr));
+      const ch = Math.max(1, Math.floor(rect.height * dpr));
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw;
+        canvas.height = ch;
+      }
+      return dpr;
+    }
+
+    function drawQuadSprite(tex, cx, cy, w, h, alpha, rotRad, tint) {
+      if (!tex || alpha <= 0.01) return;
+      gl.useProgram(spriteProg);
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.enableVertexAttribArray(spLoc.aPos);
+      gl.vertexAttribPointer(spLoc.aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(spLoc.uTex, 0);
+      gl.uniform4f(spLoc.uRect, cx, cy, w, h);
+      gl.uniform2f(spLoc.uRes, canvas.width, canvas.height);
+      gl.uniform1f(spLoc.uRot, rotRad || 0.0);
+      gl.uniform1f(spLoc.uAlpha, alpha);
+      const t = tint || [1, 1, 1];
+      gl.uniform3f(spLoc.uTint, t[0], t[1], t[2]);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.disableVertexAttribArray(spLoc.aPos);
+    }
+
+    function renderStackToFbo(target, vbo, atlasTex, sliceW, sliceH, cols, rows, pivotX, pivotY, angleRad, squash, spacing, sxMul, syMul) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
+      gl.viewport(0, 0, target.pxW, target.pxH);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+      gl.useProgram(stackProg);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo.buf);
+      gl.enableVertexAttribArray(stLoc.aCorner);
+      gl.enableVertexAttribArray(stLoc.aSlice);
+      gl.vertexAttribPointer(stLoc.aCorner, 2, gl.FLOAT, false, 20, 0);
+      gl.vertexAttribPointer(stLoc.aSlice, 3, gl.FLOAT, false, 20, 8);
+
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, atlasTex);
+      gl.uniform1i(stLoc.uAtlas, 0);
+      gl.uniform2f(stLoc.uFboSize, target.virtW, target.virtH);
+      gl.uniform2f(stLoc.uPivot, pivotX, pivotY);
+      gl.uniform2f(stLoc.uSliceDim, sliceW, sliceH);
+      gl.uniform2f(stLoc.uAtlasGrid, cols, rows);
+      gl.uniform1f(stLoc.uAngle, angleRad);
+      gl.uniform1f(stLoc.uSquash, squash);
+      gl.uniform1f(stLoc.uSpacing, spacing);
+      gl.uniform2f(stLoc.uSpring, sxMul, syMul);
+      gl.uniform1i(stLoc.uMode, (state.renderMode === 3) ? 1 : 0);
+
+      gl.drawArrays(gl.TRIANGLES, 0, vbo.count);
+
+      gl.disableVertexAttribArray(stLoc.aCorner);
+      gl.disableVertexAttribArray(stLoc.aSlice);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
+    function compositeFbo(target, screenPivotX, screenPivotY, pivotX, pivotY, unitPx, outlineCol, outRadScale) {
+      const dispW = target.virtW * unitPx;
+      const dispH = target.virtH * unitPx;
+      const rectCx = screenPivotX + (target.virtW * 0.5 - pivotX) * unitPx;
+      const rectCy = screenPivotY + (target.virtH * 0.5 - pivotY) * unitPx;
+
+      gl.bindTexture(gl.TEXTURE_2D, target.tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+      gl.useProgram(compProg);
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.enableVertexAttribArray(cpLoc.aPos);
+      gl.vertexAttribPointer(cpLoc.aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, target.tex);
+      gl.uniform1i(cpLoc.uFboTex, 0);
+      gl.uniform4f(cpLoc.uRect, rectCx, rectCy, dispW, dispH);
+      gl.uniform2f(cpLoc.uRes, canvas.width, canvas.height);
+      gl.uniform2f(cpLoc.uTexel, 1.0 / target.pxW, 1.0 / target.pxH);
+      gl.uniform2f(cpLoc.uVirtSize, target.virtW, target.virtH);
+      gl.uniform1f(cpLoc.uOutRad, target.ss * (outRadScale || 1.12));
+      gl.uniform1f(cpLoc.uOutOn, state.outlineOn ? 1.0 : 0.0);
+      gl.uniform3fv(cpLoc.uOutCol, outlineCol);
+      gl.uniform1i(cpLoc.uCompMode, state.renderMode);
+      gl.uniform1f(cpLoc.uDotSize, state.dotSize);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.disableVertexAttribArray(cpLoc.aPos);
+    }
+
+    function hash1(n) {
+      const x = Math.sin(n * 127.1 + 311.7) * 43758.5453123;
+      return x - Math.floor(x);
+    }
+
+    function collectDeclarativeFX(motionDef, phaseF, project3D, baseUnitPx, charDepth) {
+      const back = [];
+      const front = [];
+      if (!state.fxOn || !motionDef || !motionDef.fx) return { back, front };
+
+      const fc = motionDef.frames || 24;
+      const t = (phaseF % fc) / fc;
+      const ph = t * TWO_PI;
+
+      function push3D(wx, wy, wz, texKey, sizeVirt, alpha, rotRad, tint) {
+        const tex = getStaticTex(texKey);
+        if (!tex || alpha <= 0.02) return;
+        const p = project3D(wx, wy, wz);
+        const item = {
+          tex, sx: p.sx, sy: p.sy,
+          w: sizeVirt * baseUnitPx, h: sizeVirt * baseUnitPx,
+          alpha, rot: rotRad || 0, tint: tint || [1, 1, 1], depth: p.depth,
+        };
+        if (p.depth < charDepth) back.push(item);
+        else front.push(item);
+      }
+
+      for (const fx of motionDef.fx) {
+        if (fx.type === "sparkle_perimeter") {
+          const startF = fx.startFrame ?? 4;
+          const durF = fx.durationFrames ?? 15;
+          const glowW = Math.max(0, Math.sin(Math.max(0, Math.min(1, (phaseF - startF) / durF)) * Math.PI));
+          const coords = fx.points || [
+            [-30, 14, 112], [32, 14, 116], [-38, 6, 86], [36, 10, 88],
+            [-22, 18, 132], [22, 18, 130], [-32, -8, 104], [32, -10, 100],
+          ];
+          const sp0 = fx.sprite0 || "fxSpark_0";
+          const sp1 = fx.sprite1 || "fxSpark_1";
+          for (let i = 0; i < coords.length; i++) {
+            const [bx, by, bz] = coords[i];
+            const beat = (t * 2.0 + i * 0.19) % 1.0;
+            const pop = Math.sin(beat * Math.PI);
+            const sz = (7.2 + 6.0 * pop) * (0.45 + 0.55 * glowW);
+            const alpha = pop * (0.35 + 0.65 * glowW);
+            const tint = (i % 3 === 0) ? [0.65, 0.94, 1.0] : [1.0, 0.96, 0.78];
+            push3D(bx, by, bz + beat * 9.0, beat < 0.55 ? sp0 : sp1, sz, alpha, 0, tint);
+          }
+        } else if (fx.type === "orbit_trail") {
+          const count = fx.count || 18;
+          const rx = fx.rx ?? 54.0;
+          const ry = fx.ry ?? 42.0;
+          const zBase = fx.zBase ?? 86.0;
+          const zSin1 = fx.zSin1 ?? -20.0;
+          const zSin2 = fx.zSin2 ?? 8.0;
+          const spA = fx.primarySprite || "fxHeart";
+          const spB = fx.secondarySprite || "fxBubble";
+          for (let i = 0; i < count; i++) {
+            const lag = (i / count) * (fx.phaseLag ?? 0.42);
+            const pLag = ph - lag * TWO_PI;
+            const wx = rx * Math.cos(pLag) + (hash1(i * 3.1) - 0.5) * 14.0;
+            const wy = ry * Math.sin(pLag) + (hash1(i * 5.7) - 0.5) * 14.0;
+            const life = i / count;
+            const wz = zBase + zSin1 * Math.sin(pLag) + zSin2 * Math.sin(2.0 * pLag) + life * 22.0;
+            const isA = (i % 3 === 0);
+            const sz = isA ? (10.5 * (1.0 - life * 0.45)) : (7.5 + 3.5 * hash1(i * 9.3));
+            push3D(wx, wy, wz, isA ? spA : spB, sz, Math.sin((1.0 - life) * Math.PI) * 0.95, 0);
+          }
+        } else if (fx.type === "burst_above") {
+          const startF = fx.startFrame ?? 2.5;
+          const durF = fx.durationFrames ?? 10.5;
+          const w = Math.max(0, Math.sin(Math.max(0, Math.min(1, (phaseF - startF) / durF)) * Math.PI));
+          if (w > 0.05) {
+            const count = fx.count || 5;
+            const sp = fx.sprite || "fxHeart";
+            for (let k = 0; k < count; k++) {
+              const prog = (t * 2.4 + k * 0.21) % 1.0;
+              const hx = (k - (count - 1) * 0.5) * 12.5;
+              const hy = (fx.y ?? 24.0) + Math.sin(k * 2.1) * 8.0;
+              const hz = (fx.zBase ?? 92.0) + prog * 38.0;
+              push3D(hx, hy, hz, sp, 11.5 * Math.sin(prog * Math.PI), Math.sin(prog * Math.PI) * w, 0);
+            }
+          }
+        } else if (fx.type === "forward_slash_fan") {
+          const startF = fx.startFrame ?? 5.0;
+          const durF = fx.durationFrames ?? 15.0;
+          const atkF = phaseF - startF;
+          if (atkF >= 0 && atkF <= durF) {
+            const u = atkF / durF;
+            const slashPrefix = fx.slashPrefix || "fxSlash_";
+            if (u <= 0.76) {
+              const su = u / 0.76;
+              const slFrame = Math.min((fx.slashFrames || 4) - 1, Math.floor(su * (fx.slashFrames || 4)));
+              const slTex = getStaticTex(`${slashPrefix}${slFrame}`);
+              if (slTex) {
+                const pSl = project3D(0, 30 + su * 50, (fx.slashZ ?? 70) + Math.sin(su * Math.PI) * 7);
+                const fwdX = -Math.sin(state.angle);
+                const fwdY = Math.cos(state.angle) * state.squash;
+                const slashRot = Math.atan2(fwdY, fwdX);
+                const slScale = (1.22 + 0.80 * su) * baseUnitPx;
+                const item = {
+                  tex: slTex, sx: pSl.sx, sy: pSl.sy,
+                  w: (fx.slashW ?? 84) * slScale, h: (fx.slashH ?? 44) * slScale,
+                  alpha: (1.0 - su * 0.40) * 0.98, rot: slashRot, tint: [0.95, 1.0, 1.0], depth: pSl.depth + 8,
+                };
+                if (pSl.depth < charDepth) back.push(item);
+                else front.push(item);
+              }
+            }
+            const count = fx.count || 72;
+            const sp0 = fx.dropletSprite || "fxDroplet";
+            const sp1 = fx.bubbleSprite || "fxBubble";
+            const sp2 = fx.foamSprite || "fxFoam";
+            for (let i = 0; i < count; i++) {
+              const delay = hash1(i * 1.7) * 0.24;
+              const lu = (u - delay) / Math.max(0.15, 1.0 - delay);
+              if (lu <= 0.0 || lu >= 1.0) continue;
+              const spreadAng = (hash1(i * 3.9) - 0.5) * 1.65;
+              const speed = 52.0 + hash1(i * 7.3) * 74.0;
+              const dist = 22.0 + speed * Math.pow(lu, 0.68);
+              const wx = Math.sin(spreadAng) * dist + (hash1(i * 11.1) - 0.5) * 10.0;
+              const wy = Math.cos(spreadAng) * dist;
+              const vz = 28.0 + hash1(i * 13.7) * 48.0;
+              const wz = Math.max(2.0, (fx.originZ ?? 68.0) + vz * lu - 76.0 * lu * lu);
+              const kind = i % 3;
+              const texKey = kind === 0 ? sp0 : (kind === 1 ? sp1 : sp2);
+              const sz = (kind === 2 ? 10.0 : 9.2) * (0.72 + 0.65 * hash1(i * 17.3)) * (1.0 - lu * 0.30);
+              const tint = kind === 0 ? [0.68, 0.92, 1.0] : [0.92, 0.99, 1.0];
+              push3D(wx, wy, wz, texKey, sz, Math.sin(lu * Math.PI) * 0.96, lu * (hash1(i * 5.3) - 0.5) * 2.5, tint);
+            }
+          }
+        } else if (fx.type === "helix_vortex") {
+          const count = fx.count || 108;
+          const slamStart = fx.slamFrame ?? 8.5;
+          const slamProg = Math.max(0.0, Math.min(1.0, (phaseF - slamStart) / 11.0));
+          const burst = Math.sin(slamProg * Math.PI);
+          const chg = Math.max(0.0, Math.min(1.0, phaseF / slamStart)) * (1.0 - Math.max(0.0, Math.min(1.0, (phaseF - slamStart + 0.5) / 3.0)));
+          const sp0 = fx.dropletSprite || "fxDroplet";
+          const sp1 = fx.bubbleSprite || "fxBubble";
+          const sp2 = fx.foamSprite || "fxFoam";
+          const maxH = fx.maxHeight ?? (CHAR.sliceCount * 0.74);
+          for (let i = 0; i < count; i++) {
+            const stream = i % 2;
+            const seedA = hash1(i * 2.31);
+            const seedB = hash1(i * 6.73);
+            const seedC = hash1(i * 11.17);
+            const hFrac = (seedA + t * (1.35 + 0.4 * seedB)) % 1.0;
+            const wz = 4.0 + hFrac * (maxH + 28.0 * burst);
+            const spinTheta = stream * Math.PI + hFrac * TWO_PI * 2.1 + ph * 2.0 + (seedC - 0.5) * 0.55;
+            const baseR = (fx.baseRadius ?? 30.0) + 18.0 * hFrac + (seedB - 0.5) * 14.0;
+            const rad = baseR * (0.86 + 0.14 * chg + 0.68 * burst * (0.55 + 0.65 * hFrac));
+            const kind = i % 4;
+            const texKey = (kind === 0 || kind === 1) ? sp0 : (kind === 2 ? sp1 : sp2);
+            const sz = (kind === 3 ? 11.0 : 9.0) * (0.68 + 0.62 * seedC) * (0.8 + 0.42 * burst);
+            const alpha = Math.sin(hFrac * Math.PI) * (0.65 + 0.35 * Math.max(chg, burst));
+            const tint = (kind === 0) ? [0.46 + 0.45 * hFrac, 0.78 + 0.22 * hFrac, 1.0] : [0.85, 0.98, 1.0];
+            push3D(Math.cos(spinTheta) * rad, Math.sin(spinTheta) * rad, wz, texKey, sz, alpha, 0, tint);
+          }
+        }
+      }
+
+      back.sort((a, b) => a.depth - b.depth);
+      front.sort((a, b) => a.depth - b.depth);
+      return { back, front };
+    }
+
+    function renderWebGL(nowSec) {
+      const dpr = resizeCanvas();
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const theme = THEMES[state.themeIdx];
+      const mDef = curMotionDef();
+
+      // Always draw studio grid backdrop even when empty (.ap3d player waiting for drop)
+      gl.viewport(0, 0, cw, ch);
+      gl.disable(gl.BLEND);
+      gl.useProgram(bgProg);
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.enableVertexAttribArray(bgLoc.aPos);
+      gl.vertexAttribPointer(bgLoc.aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform2f(bgLoc.uRes, cw, ch);
+      gl.uniform3fv(bgLoc.uBg, theme.bg);
+      gl.uniform3fv(bgLoc.uGrid, theme.grid);
+      gl.uniform3fv(bgLoc.uStar, theme.star);
+      gl.uniform3fv(bgLoc.uStarHi, theme.starHi);
+      gl.uniform1f(bgLoc.uTime, nowSec);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.disableVertexAttribArray(bgLoc.aPos);
+
+      if (!mDef || !charFbo) {
+        if (callbacks.onHudUpdate) callbacks.onHudUpdate("READY | DROP .AP3D");
+        return;
+      }
+
+      const fc = mDef.frames || 24;
+      const phaseF = state.animPlaying ? state.animPhase : state.manualFrame;
+      const fIdx = Math.floor(phaseF) % fc;
+      const assetKey = `${mDef.keyPrefix}${String(fIdx).padStart(2, "0")}`;
+      const atlasTex = getAtlasTexture(assetKey);
+
+      // True 3D orthographic elevation: y_screen = rot.y * sin(pitch) - z * cos(pitch) * spacing
+      const pitchRad = (state.pitchDeg * Math.PI) / 180;
+      const sinP = Math.sin(pitchRad);
+      const cosP = Math.cos(pitchRad);
+      state.squash = sinP;
+      const zStep = cosP * state.spacing;
+
+      let baseUnitPx;
+      if (state.faceFocus) {
+        baseUnitPx = Math.min(cw / 108, ch / 118) * (state.zoom / 2.2);
+      } else {
+        const needW = CHAR.fboVirtW;
+        const needH = CHAR.sliceCount * Math.max(1.0, state.spacing) + CHAR.sliceH * 0.42 + 44;
+        const fitScale = Math.min(cw / needW, ch / needH);
+        baseUnitPx = fitScale * (state.zoom / 1.45);
+      }
+      baseUnitPx = Math.max(0.75 * dpr, baseUnitPx);
+
+      const sxMul = state.sqX;
+      const syMul = state.sqY;
+
+      const charBottomMargin = Math.max(22, Math.ceil(CHAR.sliceH * 0.52 * sinP + 14));
+      const charPivotY = Math.min(
+        charFbo.virtH - charBottomMargin,
+        Math.round(charFbo.virtH * 0.5 + (CHAR.sliceCount * 0.44) * zStep)
+      );
+
+      if (atlasTex) {
+        const vbo = (zStep < 0.05 || state.spacing > 1.32) ? charVBO1x : charVBO2x;
+        renderStackToFbo(
+          charFbo, vbo, atlasTex,
+          CHAR.sliceW, CHAR.sliceH, CHAR.atlasCols, CHAR.atlasRows,
+          CHAR_PIVOT_X, charPivotY,
+          state.angle, sinP, zStep, sxMul, syMul
+        );
+      }
+
+      let compDraw = null;
+      if (state.fxOn && mDef.companion && companionGpu[mDef.companion.id]) {
+        const cg = companionGpu[mDef.companion.id];
+        const cd = cg.def;
+        const orb = mDef.companion;
+        const cfc = cd.frames || fc;
+        const cfIdx = Math.floor(phaseF) % cfc;
+        const cTex = getAtlasTexture(`${cd.keyPrefix}${String(cfIdx).padStart(2, "0")}`);
+        if (cTex) {
+          const orbitPh = (phaseF / fc) * TWO_PI;
+          const rx = orb.rx ?? 50.0;
+          const ry = orb.ry ?? 40.0;
+          const wx = rx * Math.cos(orbitPh);
+          const wy = ry * Math.sin(orbitPh);
+          const wz = (orb.zBase ?? 72.0) + (orb.zSin1 ?? -18.0) * Math.sin(orbitPh) + (orb.zSin2 ?? 8.0) * Math.sin(2.0 * orbitPh);
+          const vx = -rx * Math.sin(orbitPh);
+          const vy = ry * Math.cos(orbitPh);
+          const compAngle = (orb.faceTangent !== false) ? (state.angle + Math.atan2(-vx, vy)) : state.angle;
+          const compBottomMargin = Math.max(14, Math.ceil(cd.sliceH * 0.52 * sinP + 8));
+          const compPivotY = Math.min(
+            cg.fbo.virtH - compBottomMargin,
+            Math.round(cg.fbo.virtH * 0.5 + (cd.sliceCount * 0.45) * zStep)
+          );
+          const cVbo = (zStep < 0.05 || state.spacing > 1.32) ? cg.vbo1x : cg.vbo2x;
+          renderStackToFbo(
+            cg.fbo, cVbo, cTex,
+            cd.sliceW, cd.sliceH, cd.atlasCols, cd.atlasRows,
+            cg.pivotX, compPivotY,
+            compAngle, sinP, zStep, 1.0, 1.0
+          );
+          compDraw = { cg, pivotY: compPivotY, wx, wy, wz, scale: cd.scale ?? 0.92, outRgb: cd.outlineRgb || theme.outline };
+        }
+      }
+
+      gl.viewport(0, 0, cw, ch);
+      const screenCx = cw * 0.5;
+      let screenGroundY;
+      if (state.faceFocus) {
+        screenGroundY = ch * 0.56 + CHAR.faceFocusZ * zStep * baseUnitPx;
+      } else {
+        const midZ = CHAR.sliceCount * 0.44;
+        screenGroundY = ch * 0.51 + midZ * zStep * baseUnitPx;
+      }
+
+      const ca = Math.cos(state.angle);
+      const sa = Math.sin(state.angle);
+      const charDepth = CHAR.yOffset * ca;
+
+      function project3D(wx, wy, wz) {
+        const px = wx;
+        const py = wy + CHAR.yOffset;
+        const rx = px * ca - py * sa;
+        const ry = px * sa + py * ca;
+        return {
+          sx: screenCx + rx * sxMul * baseUnitPx,
+          sy: screenGroundY + (ry * sinP - wz * zStep) * syMul * baseUnitPx,
+          depth: ry,
+        };
+      }
+
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+
+      if (state.stageOn) {
+        const airRange = mDef.airFrames;
+        const isAir = airRange && fIdx >= airRange[0] && fIdx <= airRange[1];
+        const airScale = isAir ? 0.80 : 1.0;
+
+        const ringTex = getStaticTex("turntableRing");
+        if (ringTex) {
+          drawQuadSprite(ringTex, screenCx, screenGroundY, 132 * baseUnitPx, 132 * sinP * baseUnitPx, 0.94, 0);
+        }
+
+        if (state.fxOn && mDef.fx) {
+          for (const fx of mDef.fx) {
+            if (fx.type !== "floor_wave_rings") continue;
+            const wTex = getStaticTex(fx.sprite || "fxWaveRing");
+            if (!wTex) continue;
+            const rings = fx.count || 1;
+            const startF = fx.startFrame ?? 6.0;
+            const durF = fx.durationFrames ?? 12.0;
+            const stagger = fx.staggerFrames ?? 4.0;
+            for (let r = 0; r < rings; r++) {
+              const rp = (phaseF - startF + r * stagger) / durF;
+              if (rp > 0.0 && rp < 1.0) {
+                const pRing = fx.forwardOffset ? project3D(0, fx.forwardOffset + rp * 28, 1.0) : { sx: screenCx, sy: screenGroundY };
+                const sc = (fx.startScale ?? 0.60) + rp * (fx.expandScale ?? 1.50);
+                drawQuadSprite(wTex, pRing.sx, pRing.sy, 128 * sc * baseUnitPx, 128 * sc * sinP * baseUnitPx, Math.sin(rp * Math.PI) * 0.86, 0, [0.85, 0.98, 1.0]);
+              }
+            }
+          }
+        }
+
+        const shTex = getStaticTex("shadowDither");
+        if (shTex) {
+          drawQuadSprite(shTex, screenCx, screenGroundY, 74 * airScale * sxMul * baseUnitPx, 74 * airScale * sinP * baseUnitPx, 0.92, 0);
+        }
+      }
+
+      const { back, front } = collectDeclarativeFX(mDef, phaseF, project3D, baseUnitPx, charDepth);
+      const compProj = compDraw ? project3D(compDraw.wx, compDraw.wy, compDraw.wz) : null;
+
+      for (let i = 0; i < back.length; i++) {
+        const pt = back[i];
+        drawQuadSprite(pt.tex, pt.sx, pt.sy, pt.w, pt.h, pt.alpha, pt.rot, pt.tint);
+      }
+      if (compProj && compProj.depth < charDepth) {
+        const shTex = getStaticTex("shadowDither");
+        if (state.stageOn && shTex) {
+          const ws = project3D(compDraw.wx, compDraw.wy, 0);
+          drawQuadSprite(shTex, ws.sx, ws.sy, 32 * baseUnitPx, 32 * sinP * baseUnitPx, 0.42, 0);
+        }
+        compositeFbo(compDraw.cg.fbo, compProj.sx, compProj.sy, compDraw.cg.pivotX, compDraw.pivotY, baseUnitPx * compDraw.scale, compDraw.outRgb, 1.05);
+      }
+
+      if (atlasTex) {
+        compositeFbo(charFbo, screenCx, screenGroundY, CHAR_PIVOT_X, charPivotY, baseUnitPx, theme.outline, 1.12);
+      }
+
+      if (compProj && compProj.depth >= charDepth) {
+        const shTex = getStaticTex("shadowDither");
+        if (state.stageOn && shTex) {
+          const ws = project3D(compDraw.wx, compDraw.wy, 0);
+          drawQuadSprite(shTex, ws.sx, ws.sy, 32 * baseUnitPx, 32 * sinP * baseUnitPx, 0.42, 0);
+        }
+        compositeFbo(compDraw.cg.fbo, compProj.sx, compProj.sy, compDraw.cg.pivotX, compDraw.pivotY, baseUnitPx * compDraw.scale, compDraw.outRgb, 1.05);
+      }
+      for (let i = 0; i < front.length; i++) {
+        const pt = front[i];
+        drawQuadSprite(pt.tex, pt.sx, pt.sy, pt.w, pt.h, pt.alpha, pt.rot, pt.tint);
+      }
+
+      if (state.fxOn && mDef.billboard) {
+        const bb = mDef.billboard;
+        const bbTex = getStaticTex(bb.assetKey);
+        if (bbTex) {
+          const age = Math.max(0.0, nowSec - state.motionSwitchTime);
+          const pop = age < 0.25 ? (1.0 + 0.14 * Math.sin((age / 0.25) * Math.PI)) * (age / 0.25) : 1.0;
+          const bobY = Math.sin((phaseF / fc) * TWO_PI) * (bb.bobAmp ?? 3.8) * baseUnitPx;
+          const anchor = project3D(0, 0, bb.anchorZ ?? (CHAR.sliceCount * 0.80));
+          const bScale = Math.max(1.05 * dpr, Math.min(2.35 * dpr, baseUnitPx * 0.62)) * Math.max(0.1, pop);
+          const bw = (bb.width || 112) * bScale;
+          const bh = (bb.height || 92) * bScale;
+          let bx = anchor.sx + (bb.offsetX ?? -64) * bScale;
+          let by = anchor.sy + (bb.offsetY ?? -30) * bScale + bobY;
+          bx = Math.max(bw * 0.52 + 10 * dpr, Math.min(cw - bw * 0.52 - 10 * dpr, bx));
+          by = Math.max(bh * 0.52 + 54 * dpr, Math.min(ch - bh * 0.52 - 12 * dpr, by));
+          drawQuadSprite(bbTex, bx, by, bw, bh, 0.98, 0);
+        }
+      }
+
+      const deg = Math.round((((state.angle % TWO_PI) + TWO_PI) % TWO_PI) * (180 / Math.PI)) % 360;
+      const fStr = String(fIdx + 1).padStart(2, "0");
+      const hudText = (window.innerWidth <= 860)
+        ? `${mDef.label} F${fStr} ${String(deg).padStart(3, "0")}D`
+        : `${mDef.label} F${fStr}/${fc} | ${state.animFps} FPS | ${String(deg).padStart(3, "0")} DEG`;
+      if (callbacks.onHudUpdate) callbacks.onHudUpdate(hudText);
+    }
+
+    // === CONTROLLER METHODS ===
+    function selectMotion(motionId) {
+      const m = MOTION_BY_ID[motionId];
+      if (!m) return;
+      preloadMotion(motionId);
+      state.motion = motionId;
+      state.motionSwitchTime = performance.now() * 0.001;
+      state.animPhase = 0;
+      state.manualFrame = 0;
+      state.lastFrameIdx = 0;
+      state.animPlaying = true;
+      const imp = m.impulse || [1.04, 0.96];
+      impulseSquash(imp[0], imp[1]);
+      if (callbacks.onTimelineUpdate) callbacks.onTimelineUpdate(0, curFrameCount());
+      notifyState();
+    }
+
+    function stepMotion(delta) {
+      if (MOTION_LIST.length <= 1) return;
+      const idx = Math.max(0, MOTION_LIST.findIndex((m) => m.id === state.motion));
+      const next = (idx + delta + MOTION_LIST.length) % MOTION_LIST.length;
+      selectMotion(MOTION_LIST[next].id);
+    }
+
+    function setFrame(fIdx) {
+      const fc = curFrameCount();
+      const f = Math.max(0, Math.min(fc - 1, fIdx | 0));
+      state.animPlaying = false;
+      state.manualFrame = f;
+      state.animPhase = f;
+      if (callbacks.onTimelineUpdate) callbacks.onTimelineUpdate(f, fc);
+      notifyState();
+    }
+
+    function togglePlay() {
+      const fc = curFrameCount();
+      if (state.animPlaying) {
+        state.manualFrame = Math.floor(state.animPhase) % fc;
+        state.animPlaying = false;
+        if (callbacks.onTimelineUpdate) callbacks.onTimelineUpdate(state.manualFrame, fc);
+      } else {
+        state.animPhase = state.manualFrame;
+        state.animPlaying = true;
+      }
+      notifyState();
+    }
+
+    function toggleFaceFocus() {
+      state.faceFocus = !state.faceFocus;
+      if (state.faceFocus) {
+        state.zoom = 2.25;
+        state.spacing = 1.0;
+        state.pitchDeg = DEFAULT_PITCH_DEG;
+        state.squash = Math.sin((state.pitchDeg * Math.PI) / 180);
+      } else {
+        state.zoom = DEFAULTS.zoom;
+      }
+      notifyState();
+    }
+
+    function resetAll() {
+      state.motion = DEFAULTS.motion;
+      state.animPlaying = true;
+      state.animFps = DEFAULTS.animFps;
+      state.animPhase = 0;
+      state.manualFrame = 0;
+      state.renderMode = DEFAULTS.renderMode;
+      state.dotSize = DEFAULTS.dotSize;
+      state.angle = (DEFAULTS.angleDeg * Math.PI) / 180;
+      state.autoSpin = true;
+      state.springOn = true;
+      state.fxOn = true;
+      state.pitchDeg = DEFAULT_PITCH_DEG;
+      state.squash = Math.sin((state.pitchDeg * Math.PI) / 180);
+      state.spacing = DEFAULTS.spacing;
+      state.zoom = DEFAULTS.zoom;
+      state.faceFocus = false;
+      state.outlineOn = true;
+      state.stageOn = true;
+      state.themeIdx = DEFAULTS.themeIdx;
+      impulseSquash(1.10, 0.90);
+      if (callbacks.onTimelineUpdate) callbacks.onTimelineUpdate(0, curFrameCount());
+      notifyState();
+    }
+
+    // Bind canvas drag & zoom + global keyboard shortcuts
+    canvas.addEventListener("pointerdown", (e) => {
+      state.dragActive = true;
+      state.dragId = e.pointerId;
+      state.dragLastX = e.clientX;
+      state.autoSpin = false;
+      canvas.classList.add("dragging");
+      canvas.setPointerCapture(e.pointerId);
+      notifyState();
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!state.dragActive || e.pointerId !== state.dragId) return;
+      const dx = e.clientX - state.dragLastX;
+      state.dragLastX = e.clientX;
+      state.angle = (state.angle + dx * 0.011) % TWO_PI;
+    });
+    const endCanvasDrag = (e) => {
+      if (state.dragActive && e.pointerId === state.dragId) {
+        state.dragActive = false;
+        state.dragId = null;
+        canvas.classList.remove("dragging");
+      }
+    };
+    canvas.addEventListener("pointerup", endCanvasDrag);
+    canvas.addEventListener("pointercancel", endCanvasDrag);
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.1 : -0.1;
+      state.zoom = Math.max(0.8, Math.min(3.2, Math.round((state.zoom + delta) * 20) / 20));
+      notifyState();
+    }, { passive: false });
+
+    const onKeyDown = (e) => {
+      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+      if (e.code === "KeyQ" || e.code === "ArrowLeft") keys.left = true;
+      if (e.code === "KeyE" || e.code === "ArrowRight") keys.right = true;
+      if (e.key === "[") stepMotion(-1);
+      if (e.key === "]") stepMotion(1);
+      if (e.key >= "1" && e.key <= "9") {
+        const idx = Number(e.key) - 1;
+        if (idx < MOTION_LIST.length) selectMotion(MOTION_LIST[idx].id);
+      } else if (e.key === "0" && MOTION_LIST.length >= 10) {
+        selectMotion(MOTION_LIST[9].id);
+      }
+      if (e.code === "KeyF") toggleFaceFocus();
+      if (e.code === "KeyB") impulseSquash(0.84, 1.20);
+      if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+      if (e.code === "KeyR") resetAll();
+    };
+    const onKeyUp = (e) => {
+      if (e.code === "KeyQ" || e.code === "ArrowLeft") keys.left = false;
+      if (e.code === "KeyE" || e.code === "ArrowRight") keys.right = false;
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+
+    let lastTime = performance.now();
+    let rafId = 0;
+    function tick(now) {
+      const dt = Math.min(0.05, (now - lastTime) * 0.001);
+      lastTime = now;
+      const nowSec = now * 0.001;
+
+      if (state.holdRotDir !== 0) state.angle = (state.angle + state.holdRotDir * 1.9 * dt) % TWO_PI;
+      else if (keys.left) state.angle = (state.angle - 1.9 * dt) % TWO_PI;
+      else if (keys.right) state.angle = (state.angle + 1.9 * dt) % TWO_PI;
+      else if (state.autoSpin && !state.dragActive) state.angle = (state.angle + state.spinSpeed * dt) % TWO_PI;
+
+      const mDef = curMotionDef();
+      const fc = mDef ? (mDef.frames || 24) : 1;
+      if (mDef && state.animPlaying && fc > 1) {
+        state.animPhase = (state.animPhase + state.animFps * dt) % fc;
+        const curF = Math.floor(state.animPhase) % fc;
+        if (curF !== state.lastFrameIdx) {
+          state.lastFrameIdx = curF;
+          if (callbacks.onTimelineUpdate) callbacks.onTimelineUpdate(curF, fc);
+          if (mDef.springBeats) {
+            for (const b of mDef.springBeats) {
+              if (b.frame === curF) impulseSquash(b.sx, b.sy);
+            }
+          }
+        }
+      }
+
+      stepSpring(dt);
+      renderWebGL(nowSec);
+      rafId = requestAnimationFrame(tick);
+    }
+
+    const controller = {
+      getState: () => state,
+      getConfig: () => CFG,
+      getAssets: () => ASSET_MAP,
+      getAssetSrc: (key) => ASSET_MAP[key] || null,
+      getMotions: () => MOTION_LIST,
+      getActiveMotion: () => curMotionDef(),
+      getThemeName: () => THEMES[state.themeIdx].name,
+      setCallbacks: (cb) => { callbacks = Object.assign(callbacks, cb || {}); },
+
+      selectMotion,
+      stepMotion,
+      setFrame,
+      togglePlay,
+      toggleFaceFocus,
+      resetAll,
+      loadScene,
+      addMotions,
+
+      setRenderMode: (m) => { state.renderMode = m | 0; notifyState(); },
+      setDotSize: (v) => { state.dotSize = v; if (state.renderMode > 1) state.renderMode = 0; notifyState(); },
+      toggleDotPreset: () => { state.dotSize = state.dotSize <= 1.05 ? 1.35 : 1.0; if (state.renderMode > 1) state.renderMode = 0; notifyState(); },
+      setFps: (v) => { state.animFps = Math.round(v); notifyState(); },
+      setPitchDeg: (deg) => { state.pitchDeg = Math.max(15, Math.min(90, Math.round(deg))); state.squash = Math.sin((state.pitchDeg * Math.PI) / 180); notifyState(); },
+      setSpacing: (v) => { state.spacing = v; notifyState(); },
+      setZoom: (v) => { state.zoom = v; notifyState(); },
+      setAngleDeg: (deg) => { state.angle = ((Number(deg) || 0) * Math.PI) / 180; state.autoSpin = false; notifyState(); },
+      setHoldRotDir: (dir) => { state.holdRotDir = dir; if (dir !== 0) state.autoSpin = false; notifyState(); },
+      toggleTopView: () => {
+        state.faceFocus = false;
+        state.pitchDeg = state.pitchDeg >= 89 ? DEFAULT_PITCH_DEG : 90;
+        state.squash = Math.sin((state.pitchDeg * Math.PI) / 180);
+        notifyState();
+      },
+      toggleSpread: () => {
+        state.faceFocus = false;
+        state.spacing = state.spacing >= 1.80 ? 1.0 : 2.0;
+        if (state.spacing >= 1.80 && state.pitchDeg > 65) {
+          state.pitchDeg = 38;
+          state.squash = Math.sin((state.pitchDeg * Math.PI) / 180);
+        }
+        notifyState();
+      },
+      triggerBounce: () => impulseSquash(0.84, 1.20),
+      toggleFlag: (k) => { state[k] = !state[k]; notifyState(); },
+      cycleTheme: () => { state.themeIdx = (state.themeIdx + 1) % THEMES.length; notifyState(); },
+
+      async exportAP3D() {
+        if (!global.AP3DCodec) throw new Error("AP3DCodec script not loaded");
+        if (MOTION_LIST.length === 0) throw new Error("No character loaded to export");
+        const bytes = await global.AP3DCodec.encode(CFG, ASSET_MAP);
+        const filename = global.AP3DCodec.slugifyFilename(CFG.title);
+        global.AP3DCodec.downloadBytes(bytes, filename);
+        return { filename, bytes: bytes.byteLength };
+      },
+
+      async loadAP3DFile(file, loadOpts) {
+        if (!global.AP3DCodec) throw new Error("AP3DCodec script not loaded");
+        const buf = await file.arrayBuffer();
+        const decoded = global.AP3DCodec.decode(buf);
+        if (loadOpts && loadOpts.merge && MOTION_LIST.length > 0) {
+          return addMotions(
+            decoded.sceneConfig.motions || [],
+            decoded.assets || {},
+            decoded.sceneConfig.companions || {},
+            decoded.sceneConfig.assetLinear || {},
+            decoded.objectUrls || []
+          );
+        }
+        loadScene(decoded.sceneConfig, decoded.assets, decoded.objectUrls);
+        return (decoded.sceneConfig.motions || []).length;
+      },
+
+      destroy: () => {
+        cancelAnimationFrame(rafId);
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("keyup", onKeyUp);
+        disposeSceneGpu();
+      },
+    };
+
+    loadScene(opts.config || {}, opts.assets || {}, []);
+    rafId = requestAnimationFrame(tick);
+    return controller;
+  }
+
+  global.AnimeStackEngine = {
+    create: createEngine,
+    THEMES,
+  };
+
+  // Auto-mount full studio viewer if #appRoot is present (standard viewer_shell.html flow)
+  function autoBootstrap() {
+    if (global.ANIME_AUTO_MOUNT === false) return;
+    const root = document.getElementById("appRoot");
+    if (!root || !global.AnimeUIKit) return;
+
+    // Create a placeholder proxy so mountStudioUI can create the <canvas>, then attach engine cleanly
+    let engineRef = null;
+    const proxy = new Proxy({}, {
+      get: (_, prop) => (...args) => engineRef && typeof engineRef[prop] === "function" ? engineRef[prop](...args) : undefined,
+    });
+    const ui = global.AnimeUIKit.mountStudioUI(root, proxy, global.ANIME_UI_OPTIONS || {});
+    engineRef = createEngine({
+      canvas: ui.canvas,
+      config: global.SCENE_CONFIG || { motions: [] },
+      assets: global.SPRITE_ASSETS || {},
+      onHudUpdate: (txt) => ui.updateHud(txt),
+      onTimelineUpdate: (f, fc) => ui.updateTimeline(f, fc),
+      onStateChange: () => { if (engineRef) ui.syncAll(); },
+      onSceneChange: () => { if (engineRef) ui.syncScene(); },
+    });
+    ui.syncScene();
+    global.ANIME_ENGINE = engineRef;
+    global.ANIME_UI = ui;
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", autoBootstrap);
+  } else {
+    autoBootstrap();
+  }
+})(window);
+
+</script>
+</body>
+</html>

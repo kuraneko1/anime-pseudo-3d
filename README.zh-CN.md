@@ -116,56 +116,52 @@
 
 ---
 
-## 解耦架构（模型制作工具链与 WebGL 引擎分离）
+## 四层解耦架构（多视图 3D 拼接 · 制作工具链 · `.ap3d` 格式 · 可复用 UI 与引擎）
 
 ```mermaid
 flowchart LR
-  subgraph T1["toolkit/ (模型雕刻与 24FPS 动画生产管线)"]
+  subgraph T1["toolkit/ (多视图 3D 拼接与 24FPS 制作管线)"]
+    MV["multiview_fitter.py (上下左右三视图分割·Z轴对齐·Visual Hull·6面无缝着色)"]
     SDF["gpu_sdf.py (CuPy GPU / NumPy CPU 自动切换 SDF)"]
     FACE["anime_face_kit.py (倾斜原画人脸投影与安全表情合成)"]
     RIG["rig_contracts.py (FK + 3D IK 统一 PoseFrame 契约)"]
-    FXK["pixel_fx_kit.py (100% 像素特效与 16x16 UI 图标)"]
-    QA["qa_validator.py (越界裁切 / 循环接缝 / 多角度 QA)"]
+    QA["qa_validator.py (越界裁切 / 循环接缝 / 轮廓 IoU QA)"]
+    AP3D["ap3d_format.py (.ap3d 二进制 pack/unpack/merge)"]
   end
 
-  subgraph E1["engine/ (完全角色无关的 WebGL 2-Pass 引擎)"]
-    PACK["motion_pack.json (声明式场景契约)"]
-    GL["anime_stack_engine.js (2x 子切片 / 4种质感 / Z排序 / 3D特效)"]
-    UI["viewer_shell.html (100% 像素纯净 UI / PC 与移动端)"]
-    BND["bundle_standalone.py (file:// 单文件 HTML 打包器)"]
+  subgraph E1["engine/ (可复用 WebGL 2-Pass 引擎与模块化像素 UI 库)"]
+    CODEC["ap3d_codec.js (零依赖浏览器 .ap3d 导出/加载/合并)"]
+    UIKIT["anime_ui_kit.js + anime_ui_theme.css (支持任意数量动作的通用 UI)"]
+    GL["anime_stack_engine.js (真3D俯仰 / 4种质感 / Z排序 / 热重载)"]
+    BND["bundle_standalone.py (file:// 单文件 HTML 与通用播放器打包器)"]
   end
 
+  MV --> SDF
   SDF --> QA
   FACE --> QA
   RIG --> SDF
-  FXK --> PACK
-  QA -->|"16x10 Lossless WebP"| PACK
-  PACK --> GL
+  QA -->|"motion_pack.json + WebP"| AP3D
+  AP3D -->|".ap3d"| CODEC
+  CODEC --> GL
+  UIKIT --> GL
   GL --> BND
-  UI --> BND
 ```
 
 ---
 
 ## 核心特性
 
-### 1. 角色无关的数据驱动 WebGL 2-Pass 渲染引擎（`engine/`）
-- **零闪烁顺滑管线**：无角度量化的连续 0.001° GPU 旋转 ＋ 2 倍交错子切片插值（等效 320 层）＋ 2 倍超采样离屏 FBO。
-- **4 种实时质感着色模式**：
-  - `SMOOTH AA`（默认）：不透明纹素归一化 ＋ `fwidth` 亚像素边缘抗锯齿（杜绝黑边渗色）。
-  - `PIXEL+AA`：保留方形像素颗粒感并叠加顺滑边缘抗锯齿（支持自由调节 `DOT SIZE`）。
-  - `RETRO PX`：经典硬边像素 ＋ 四向阶梯描边 ＋ 复古色阶量化。
-  - `SILKY 3D`：双线性柔滑手办质感。
-- **二次元出片默认参数与真 3D 俯仰投影**：开箱即设为 `PITCH 20°`（`sin θ ≈ 0.35`，配精确 `cos θ` 纵轴透视缩短）、`ICE LAB` 明亮棚拍背景与 `SMOOTH AA`。
-- **多 3D 堆叠前后深度 Z 排序**：自动依据当前相机角度将环绕角色的 3D 伙伴模型（独立 FBO）与 3D 粒子精准排序至角色身前或身后。
-- **声明式 `motion_pack.json`**：动作列表、3D 伙伴环绕轨道、头顶思考气泡、3D 粒子发射器（`sparkle_perimeter` / `orbit_trail` / `burst_above` / `forward_slash_fan` / `helix_vortex` / `floor_wave_rings`）全部通过 JSON 配置，无需改动引擎代码。
-- **24 帧「子弹时间」时间轴**：支持暂停并拖动任意单帧，同时 360° 环绕观察刀光、冲击波与 3D 伙伴细节。
+### 1. 可复用 WebGL 2-Pass 引擎与支持任意数量动作的通用像素 UI（`engine/`）
+- **模块化 UI 组件库（`AnimeStackEngine` + `AnimeUIKit`）**：将 WebGL 核心（`anime_stack_engine.js`）与 100% 像素纯净 UI 库（`anime_ui_kit.js` + `anime_ui_theme.css`）解耦。既可一行代码 `mountStudioUI()` 挂载完整工作室，也可按需复用单个组件（像素滑块、时间轴、动作架、`.ap3d` 文件读写栏）。
+- **不限动画数量（1 ～ ∞ 组动作）**：从单帧静模到 9、18 甚至 50+ 组动作均可自适应——支持动态列数、可滚动像素动作架、可选分类筛选标签（`motion.category`）、`<` / `>`（`[` / `]` 键）步进切换，以及运行时 `engine.addMotions()` / `engine.loadScene()` 热更新。
+- **便携自定义二进制格式 `.ap3d`**：零外部 ZIP 依赖的自定义二进制封装（`AP3D` v1，较 base64 缩减约 33% 体积）。浏览器内置 **`LOAD` / `+MOTION` / `EXPORT`** 按钮并支持**直接拖拽 `.ap3d` 到画布加载（按住 `Shift` 拖入可追加合并动作）**。仓库附带轻量通用播放器 [`examples/ap3d_player.html`](./examples/ap3d_player.html)（约 116 KB）。
+- **真 3D 正交俯仰与 4 种实时着色模式**：无角度量化连续 0.001° GPU 旋转 ＋ 真 3D 正交俯仰（`y = rot.y · sin θ − z · cos θ`，`PITCH 15°–90°`、默认 `20°`）＋ 2 倍交错子切片（320 层）＋ 4 种质感（`SMOOTH AA` / `PIXEL+AA` / `RETRO PX` / `SILKY 3D`）。
+- **多 3D 堆叠深度 Z 排序与声明式特效**：3D 环绕伙伴、头顶气泡与 3D 粒子全部由 JSON 声明驱动。
 
-### 2. 动漫风 3D 制作工具包（`toolkit/`）
-- **`gpu_sdf.py`**：自动检测 CuPy（NVIDIA GPU）并在无卡环境无缝回退至 NumPy CPU 的 3D SDF 雕刻与三阶赛璐璐着色库。
-- **`anime_face_kit.py`**：从原画提取面部、斜向贴合投影，以及彻底杜绝暖色皮肤光晕瑕疵的表情绘制助手。
-- **`rig_contracts.py`**：融合 FK 关节旋转与 3D 坐标 IK 目标的统一 `PoseFrame` 契约、体积守恒挤压拉伸 `sx` 与滞后弹性周期曲线。
-- **`qa_validator.py` & `record_gif.py`**：循环首尾连续性数学校验、全帧边界越界检测、多角度 3D QA 检视表导出，以及基于 Playwright + FFmpeg 的高画质调色板 GIF 录制器。
+### 2. 多视图 3D 拼接与动漫制作工具包（`toolkit/`）
+- **`multiview_fitter.py`（跨会话 3D 重建保障）**：对生成的 `FRONT / SIDE / BACK / TOP` 多视图使用边界漫水填充抠图（完好保留白色衬衫与眼白），自动测算解剖学 Z 轴标尺、构建 3D Visual Hull 并执行**法线加权 6 方向无缝着色**，同时输出正交轮廓 IoU 对比图（`qa_3d_fit_overlay.png`）确保任何新会话都不会 3D 化失败。
+- **`ap3d_format.py`**：Python CLI 一键执行 `.ap3d` 的 `pack`、`unpack`、`inspect` 与 `merge`（无需重烘即可向已有角色追加新动作）。
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**：CuPy GPU / NumPy CPU 自动切换 SDF、倾斜原画人脸投影、FK/IK 统一 `PoseFrame`、越界防护与高质量 GIF 录制。
 
 ---
 
@@ -173,28 +169,35 @@ flowchart LR
 
 ```text
 anime-pseudo-3d/
-├── SKILL.md                      # AI Agent 技能定义 (兼容 Antigravity / OpenClaude)
+├── SKILL.md                      # AI Agent 6 阶段端到端标准技能 SOP
 ├── README.md / README.en.md / README.zh-CN.md
-├── assets/                       # 专属图标、演示 GIF、四种质感与切片展开对比图
+├── assets/                       # 专属图标、演示 GIF、四种质感与真 3D 俯仰对比图
 ├── engine/
-│   ├── anime_stack_engine.js     # 角色无关 WebGL 2-Pass 引擎核心
-│   ├── viewer_shell.html         # 100% 像素纯净 UI 外壳 (PC + 移动端)
-│   ├── motion_pack.schema.json   # motion_pack.json 规范 Schema
-│   ├── bundle_standalone.py      # 离线 file:// 单文件 HTML 打包脚本
-│   └── audit_pixel_build.py      # 像素纯净度静态审计工具
+│   ├── anime_stack_engine.js     # 可复用、支持热重载的 WebGL 2-Pass 引擎核心
+│   ├── anime_ui_kit.js           # 可复用像素 UI 组件库 (任意数量动作 + .ap3d 读写)
+│   ├── anime_ui_theme.css        # 100% 像素纯净主题样式表 (PC + 移动端)
+│   ├── ap3d_codec.js             # 零依赖浏览器 .ap3d 二进制编解码器
+│   ├── viewer_shell.html         # 简洁模块化 HTML 外壳
+│   ├── motion_pack.schema.json   # motion_pack.json 规范 Schema (v1.1)
+│   ├── bundle_standalone.py      # 单文件 HTML / .ap3d / 通用播放器打包脚本
+│   └── audit_pixel_build.py      # HTML + CSS + JS 像素纯净度静态审计工具
 ├── toolkit/
+│   ├── multiview_fitter.py       # 多视图自动分割、Z轴对齐、Visual Hull、6面无缝着色与 IoU QA
+│   ├── ap3d_format.py            # .ap3d 二进制 CLI (pack / unpack / inspect / merge)
 │   ├── gpu_sdf.py                # CuPy GPU / NumPy CPU 3D SDF 基础图元
 │   ├── anime_face_kit.py         # 倾斜人脸投影与表情合成助手
 │   ├── rig_contracts.py          # FK/IK 统一 PoseFrame 与周期动画曲线
-│   ├── pixel_fx_kit.py           # 像素特效精灵 (水滴/气泡/斩光/波纹) 与 16x16 图标
+│   ├── pixel_fx_kit.py           # 像素特效精灵与 16x16 UI 图标
 │   ├── qa_validator.py           # 烘焙前数学 QA + 越界防护 + 3D QA 检视表
 │   └── record_gif.py             # Playwright WebGL → FFmpeg 优化 GIF 录制器
 ├── examples/
-│   └── slime_chibi_demo/         # 端到端极简示例 (Q版水精灵 + 3D 星型伙伴 + 水特效)
+│   ├── ap3d_player.html          # 轻量通用拖拽式 .ap3d 播放器 (约 116 KB)
+│   └── slime_chibi_demo/         # 端到端极简示例 (单文件 HTML + slime-chibi.ap3d)
 └── references/
-    ├── anime_model_guide.md      # 动漫风 3D 建模设计指南
-    ├── animation_24fps_guide.md  # 24 FPS 骨骼绑定、IK 与节奏指南
-    └── webgl_engine_guide.md     # WebGL 引擎与 motion_pack.json 参考手册
+    ├── multiview_3d_reconstruction_guide.md  # 多视图生图提示词与无缝 3D 拼接指南
+    ├── anime_model_guide.md                  # 动漫风 3D 建模设计指南
+    ├── animation_24fps_guide.md              # 24 FPS 骨骼绑定、IK 与节奏指南
+    └── webgl_engine_guide.md                 # WebGL 引擎、AnimeUIKit 与 .ap3d API 手册
 ```
 
 ---
@@ -207,25 +210,34 @@ git clone https://github.com/kuraneko1/anime-pseudo-3d.git ~/projects/anime-pseu
 ln -s ~/projects/anime-pseudo-3d ~/.agents/skills/anime-pseudo-3d
 ```
 
-### 2. 构建并运行极简示例
+### 2. 构建极简示例（单文件 HTML ＋ `.ap3d`）并用通用播放器体验
 ```bash
 cd ~/projects/anime-pseudo-3d
 python3 examples/slime_chibi_demo/build_demo.py
-# -> 用浏览器直接打开 examples/slime_chibi_demo/build/slime-chibi-standalone.html 即可体验！
+# -> 直接打开 examples/slime_chibi_demo/build/slime-chibi-standalone.html，
+#    或打开 examples/ap3d_player.html 并将 slime-chibi.ap3d 拖入画面即可播放！
 ```
 
-### 3. 像素纯净度审计与单文件 HTML 打包
+### 3. 像素审计、`.ap3d` 打包合并与单文件 HTML 输出
 ```bash
 python3 engine/audit_pixel_build.py \
   --html engine/viewer_shell.html \
-  --js engine/anime_stack_engine.js
+  --css engine/anime_ui_theme.css \
+  --js engine/ap3d_codec.js engine/anime_ui_kit.js engine/anime_stack_engine.js
 
 python3 engine/bundle_standalone.py \
   --html engine/viewer_shell.html \
   --js engine/anime_stack_engine.js \
   --pack your_char/motion_pack.json \
   --assets-root your_char \
+  --export-ap3d dist/your-char.ap3d \
   --out dist/your-char-standalone.html
+
+# 向现有 .ap3d 追加新动作（无需重新烘焙）
+python3 toolkit/ap3d_format.py merge \
+  --base dist/your-char.ap3d \
+  --extra dist/more-motions.ap3d \
+  --out dist/your-char-expanded.ap3d
 ```
 
 ---

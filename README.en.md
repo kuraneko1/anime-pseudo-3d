@@ -116,56 +116,52 @@ The core sprite-stacking (layered 2D slice fake-3D pixel art) inspiration and fo
 
 ---
 
-## Decoupled Architecture (Model Production vs. WebGL Engine)
+## 4-Layer Architecture (Multi-View Joining · Model Toolkit · `.ap3d` Format · Reusable UI & Engine)
 
 ```mermaid
 flowchart LR
-  subgraph T1["toolkit/ (Sculpting & 24-FPS Animation Pipeline)"]
+  subgraph T1["toolkit/ (Multi-View 3D Joining & 24-FPS Pipeline)"]
+    MV["multiview_fitter.py (Split FRONT/SIDE/BACK/TOP · Z-Align · Visual Hull · 6-View Colors)"]
     SDF["gpu_sdf.py (CuPy GPU / NumPy CPU Auto-Fallback SDF)"]
     FACE["anime_face_kit.py (Tilted Artwork Face Projection & Safe Expressions)"]
     RIG["rig_contracts.py (Unified FK + 3D IK PoseFrame)"]
-    FXK["pixel_fx_kit.py (100% Pixel FX & 16x16 UI Icons)"]
-    QA["qa_validator.py (Clipping / Loop Seam / Multi-Angle QA)"]
+    QA["qa_validator.py (Clipping / Loop Seam / Silhouette IoU QA)"]
+    AP3D["ap3d_format.py (.ap3d Binary pack/unpack/merge)"]
   end
 
-  subgraph E1["engine/ (Character-Agnostic WebGL 2-Pass Engine)"]
-    PACK["motion_pack.json (Declarative Scene Contract)"]
-    GL["anime_stack_engine.js (2x Sub-Slices / 4 Shaders / Z-Sort / 3D FX)"]
-    UI["viewer_shell.html (100% Pixel-Pure UI / Desktop & Mobile)"]
-    BND["bundle_standalone.py (file:// Single-HTML Bundler)"]
+  subgraph E1["engine/ (Reusable WebGL 2-Pass Engine & Modular Pixel UI Kit)"]
+    CODEC["ap3d_codec.js (Zero-Dep Browser .ap3d Export/Load/Merge)"]
+    UIKIT["anime_ui_kit.js + anime_ui_theme.css (Arbitrary-N Motion UI Kit)"]
+    GL["anime_stack_engine.js (True 3D Pitch / 4 Shaders / Z-Sort / Hot-Reload)"]
+    BND["bundle_standalone.py (file:// Single-HTML & Universal Player Bundler)"]
   end
 
+  MV --> SDF
   SDF --> QA
   FACE --> QA
   RIG --> SDF
-  FXK --> PACK
-  QA -->|"16x10 Lossless WebP"| PACK
-  PACK --> GL
+  QA -->|"motion_pack.json + WebP"| AP3D
+  AP3D -->|".ap3d"| CODEC
+  CODEC --> GL
+  UIKIT --> GL
   GL --> BND
-  UI --> BND
 ```
 
 ---
 
 ## Key Features
 
-### 1. Character-Agnostic, Data-Driven WebGL 2-Pass Engine (`engine/`)
-- **Zero-Flicker Pipeline**: Continuous 0.001° GPU rotation without angle quantization + 2× interleaved sub-slice interpolation (320 effective slices) + 2× supersampled offscreen FBO.
-- **4 Real-Time Render Modes**:
-  - `SMOOTH AA` *(default)*: Opaque-texel color normalization + `fwidth` subpixel boundary AA (zero dark fringe bleeding).
-  - `PIXEL+AA`: Crisp square pixel dots with smooth antialiased outer edges (adjustable `DOT SIZE`).
-  - `RETRO PX`: Classic hard-edge pixels + 4-way stepped pixel outline + retro color quantization.
-  - `SILKY 3D`: Smooth bilinear figurine-style surface rendering.
-- **Anime-Ready Defaults & True 3D Elevation**: Ships tuned with `PITCH 20°` (`sin θ ≈ 0.35` with exact `cos θ` vertical foreshortening), `ICE LAB` studio theme, and `SMOOTH AA`.
-- **Multi-Stack 3D Depth Z-Sorting**: Automatically sorts orbiting 3D companion models (rendered to a second FBO) and 3D particle emitters cleanly behind or in front of the hero character at every camera angle.
-- **Declarative `motion_pack.json`**: Define motions, orbiting 3D companions, overhead thought-bubble memes, and 3D particle emitters (`sparkle_perimeter`, `orbit_trail`, `burst_above`, `forward_slash_fan`, `helix_vortex`, `floor_wave_rings`) purely in JSON—no engine JS modifications required.
-- **24-Frame Bullet-Time Timeline**: Pause and scrub any frame while orbiting 360° around slashes, shockwaves, and 3D companions.
+### 1. Reusable WebGL 2-Pass Engine & Arbitrary-N Motion UI Kit (`engine/`)
+- **Modular UI Library (`AnimeStackEngine` + `AnimeUIKit`)**: Decouples the WebGL core (`anime_stack_engine.js`) from the 100% pixel-pure UI component library (`anime_ui_kit.js` + `anime_ui_theme.css`). Mount a complete studio in 1 line (`mountStudioUI()`) or compose individual widgets (`createMotionShelf`, `createPixelSlider`, `createTimelineScrubber`, `createFileIOControls`) in any custom app.
+- **Arbitrary-N Animations (`1` to `∞` Motions)**: Scales cleanly from 1 static model to 9, 18, or 50+ motions with dynamic grid sizing, scrollable pixel shelf, optional category filter tabs (`motion.category`), `<` / `>` (`[` / `]` keys) stepping, and live `engine.addMotions()` / `engine.loadScene()` hot-reloading.
+- **Portable `.ap3d` Binary Package Format**: Zero-dependency binary container (`AP3D` v1, ~33% smaller than base64). Export, load, or append-merge animations right inside the browser via **`LOAD` / `+MOTION` / `EXPORT`** buttons or **drag-and-drop onto the 3D stage** (hold `Shift` on drop to merge). Ships with a lightweight universal player [`examples/ap3d_player.html`](./examples/ap3d_player.html) (~116 KB).
+- **True 3D Orthographic Elevation & 4 Live Shaders**: Continuous 0.001° GPU rotation + true 3D elevation (`y = rot.y · sin θ − z · cos θ`, `PITCH 15°–90°`, default `20°`) + 2× interleaved sub-slices (320 layers) + 4 render modes (`SMOOTH AA`, `PIXEL+AA`, `RETRO PX`, `SILKY 3D`).
+- **Multi-Stack Z-Sorting & Declarative FX**: Orbiting 3D companions, thought bubbles, and 3D particle emitters configured purely via JSON.
 
-### 2. Anime 3D Production Toolkit (`toolkit/`)
-- **`gpu_sdf.py`**: Auto-detects CuPy (NVIDIA GPU) with seamless NumPy CPU fallback for fast 3D SDF sculpting and 3-step anime cel-shading.
-- **`anime_face_kit.py`**: Extracts artwork faces, projects them cleanly onto the sculpted head at eye-level tilt, and provides halo-free expression painting helpers.
-- **`rig_contracts.py`**: Unified `PoseFrame` dataclass combining FK rotations with 3D IK targets, volume-preserving `sx` squash-and-stretch, and phase-lagged secondary springs.
-- **`qa_validator.py` & `record_gif.py`**: Mathematical loop-seam continuity checks, full-frame border clipping assertions, multi-angle 3D QA sheet renderer, and deterministic Playwright + FFmpeg GIF capture.
+### 2. Multi-View 3D Joining & Production Toolkit (`toolkit/`)
+- **`multiview_fitter.py` (Cross-Session 3D Reconstruction Guard)**: Splits generated `FRONT / SIDE / BACK / TOP` turnaround sheets with border flood-fill (preserving interior white shirts/eyes), extracts exact anatomical Z-landmarks, builds 3D Visual Hulls with **seam-free 6-view normal-weighted color blending**, and validates sculpted models with orthographic Silhouette IoU QA overlays (`qa_3d_fit_overlay.png`).
+- **`ap3d_format.py`**: Python CLI for `.ap3d` `pack`, `unpack`, `inspect`, and `merge` (append extra animations without re-baking).
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: Auto CuPy/NumPy SDFs, tilted artwork face projection, unified FK/IK `PoseFrame`, border clipping guard, and Playwright + FFmpeg GIF capture.
 
 ---
 
@@ -173,28 +169,35 @@ flowchart LR
 
 ```text
 anime-pseudo-3d/
-├── SKILL.md                      # AI Agent Skill definition (Antigravity / OpenClaude compatible)
+├── SKILL.md                      # Complete 6-Stage AI Agent Skill SOP
 ├── README.md / README.en.md / README.zh-CN.md
-├── assets/                       # Logo icon, demo GIFs, render-mode & slice-spread visual guides
+├── assets/                       # Logo icon, demo GIFs, render-mode & true-3D pitch visual guides
 ├── engine/
-│   ├── anime_stack_engine.js     # Character-agnostic WebGL 2-Pass engine
-│   ├── viewer_shell.html         # 100% pixel-pure UI shell (Desktop + Mobile)
-│   ├── motion_pack.schema.json   # Declarative motion_pack.json JSON Schema
-│   ├── bundle_standalone.py      # Offline file:// single-HTML bundler
-│   └── audit_pixel_build.py      # Pixel-purity static auditor
+│   ├── anime_stack_engine.js     # Reusable, hot-reloadable WebGL 2-Pass engine
+│   ├── anime_ui_kit.js           # Reusable pixel UI component kit (arbitrary-N motions + .ap3d IO)
+│   ├── anime_ui_theme.css        # 100% pixel-pure studio CSS theme (Desktop + Mobile)
+│   ├── ap3d_codec.js             # Zero-dependency browser .ap3d binary codec
+│   ├── viewer_shell.html         # Clean modular HTML shell
+│   ├── motion_pack.schema.json   # Declarative motion_pack.json JSON Schema (v1.1)
+│   ├── bundle_standalone.py      # Offline single-HTML / .ap3d / universal player bundler
+│   └── audit_pixel_build.py      # Modular HTML + CSS + JS pixel-purity auditor
 ├── toolkit/
+│   ├── multiview_fitter.py       # Multi-view splitter, Z-landmark aligner, Visual Hull & 6-view color joiner
+│   ├── ap3d_format.py            # .ap3d binary CLI (pack / unpack / inspect / merge)
 │   ├── gpu_sdf.py                # CuPy GPU / NumPy CPU 3D SDF primitives
 │   ├── anime_face_kit.py         # Tilted artwork face projection & expression helpers
 │   ├── rig_contracts.py          # Unified FK/IK PoseFrame & cyclic motion curves
-│   ├── pixel_fx_kit.py           # Pixel FX sprites (droplet/bubble/slash/ring) & 16x16 icons
+│   ├── pixel_fx_kit.py           # Pixel FX sprites & 16x16 UI icons
 │   ├── qa_validator.py           # Pre-bake math QA + clipping guard + 3D QA sheets
 │   └── record_gif.py             # Playwright WebGL → FFmpeg palette-optimized GIF recorder
 ├── examples/
-│   └── slime_chibi_demo/         # Minimal end-to-end demo (chibi + 3D star companion + water FX)
+│   ├── ap3d_player.html          # Lightweight universal drag-and-drop .ap3d player (~116 KB)
+│   └── slime_chibi_demo/         # End-to-end minimal demo (standalone HTML + slime-chibi.ap3d)
 └── references/
-    ├── anime_model_guide.md      # Anime-style 3D model design guide
-    ├── animation_24fps_guide.md  # 24-FPS rigging, IK & timing guide
-    └── webgl_engine_guide.md     # WebGL engine & motion_pack.json reference
+    ├── multiview_3d_reconstruction_guide.md  # Multi-view sheet prompts & seam-free 3D joining guide
+    ├── anime_model_guide.md                  # Anime-style 3D model design guide
+    ├── animation_24fps_guide.md              # 24-FPS rigging, IK & timing guide
+    └── webgl_engine_guide.md                 # WebGL engine, AnimeUIKit & .ap3d API reference
 ```
 
 ---
@@ -207,25 +210,34 @@ git clone https://github.com/kuraneko1/anime-pseudo-3d.git ~/projects/anime-pseu
 ln -s ~/projects/anime-pseudo-3d ~/.agents/skills/anime-pseudo-3d
 ```
 
-### 2. Build & Run the Minimal Demo
+### 2. Build the Minimal Demo (Single HTML + `.ap3d`) & Try the Universal Player
 ```bash
 cd ~/projects/anime-pseudo-3d
 python3 examples/slime_chibi_demo/build_demo.py
-# -> Open examples/slime_chibi_demo/build/slime-chibi-standalone.html in any modern browser!
+# -> Open examples/slime_chibi_demo/build/slime-chibi-standalone.html,
+#    OR open examples/ap3d_player.html and drag-and-drop slime-chibi.ap3d!
 ```
 
-### 3. Run Pixel-Purity Audit & Bundle Your Own Single HTML
+### 3. Audit, Pack `.ap3d`, Merge Motions & Bundle Single HTML
 ```bash
 python3 engine/audit_pixel_build.py \
   --html engine/viewer_shell.html \
-  --js engine/anime_stack_engine.js
+  --css engine/anime_ui_theme.css \
+  --js engine/ap3d_codec.js engine/anime_ui_kit.js engine/anime_stack_engine.js
 
 python3 engine/bundle_standalone.py \
   --html engine/viewer_shell.html \
   --js engine/anime_stack_engine.js \
   --pack your_char/motion_pack.json \
   --assets-root your_char \
+  --export-ap3d dist/your-char.ap3d \
   --out dist/your-char-standalone.html
+
+# Append extra animations to an existing .ap3d without re-baking
+python3 toolkit/ap3d_format.py merge \
+  --base dist/your-char.ap3d \
+  --extra dist/more-motions.ap3d \
+  --out dist/your-char-expanded.ap3d
 ```
 
 ---

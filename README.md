@@ -116,56 +116,52 @@
 
 ---
 
-## アーキテクチャ（モデル制作・アニメーション・表示エンジンの分離）
+## アーキテクチャ（4 層分離：多面図接合・モデル制作・`.ap3d` 形式・再利用 UI ＆ WebGL エンジン）
 
 ```mermaid
 flowchart LR
-  subgraph T1["toolkit/ (モデル生成 & 24FPS アニメーション制作)"]
+  subgraph T1["toolkit/ (多面図 3D 接合 & 24FPS アニメーション制作)"]
+    MV["multiview_fitter.py (上下左右三面図分割・Z整列・Visual Hull・6面色接合)"]
     SDF["gpu_sdf.py (CuPy GPU / NumPy CPU 自動切替 SDF)"]
     FACE["anime_face_kit.py (元絵顔投影 & 安全表情合成)"]
     RIG["rig_contracts.py (FK + 3D IK 統一 PoseFrame)"]
-    FXK["pixel_fx_kit.py (100% ドットFX & 16x16アイコン)"]
-    QA["qa_validator.py (クリップ/ループ連続性/多角度QA)"]
+    QA["qa_validator.py (クリップ/ループ連続性/IoU QA)"]
+    AP3D["ap3d_format.py (.ap3d バイナリ pack/unpack/merge)"]
   end
 
-  subgraph E1["engine/ (完全キャラ非依存 WebGL 2-Pass エンジン)"]
-    PACK["motion_pack.json (宣言的シーン契約)"]
-    GL["anime_stack_engine.js (2x サブスライス / 4質感 / Zソート / 3D FX)"]
-    UI["viewer_shell.html (100% ピクセルUI / PC & スマホ対応)"]
-    BND["bundle_standalone.py (file:// 単一HTMLバンドラ)"]
+  subgraph E1["engine/ (再利用可能 WebGL 2-Pass エンジン & 汎用 UI キット)"]
+    CODEC["ap3d_codec.js (ブラウザ .ap3d 書き出し/読込/結合)"]
+    UIKIT["anime_ui_kit.js + anime_ui_theme.css (任意Nモーション汎用UI)"]
+    GL["anime_stack_engine.js (真の3D俯瞰 / 4質感 / Zソート / 動的切替)"]
+    BND["bundle_standalone.py (file:// 単一HTML & 汎用プレイヤー生成)"]
   end
 
+  MV --> SDF
   SDF --> QA
   FACE --> QA
   RIG --> SDF
-  FXK --> PACK
-  QA -->|"16x10 Lossless WebP"| PACK
-  PACK --> GL
+  QA -->|"motion_pack.json + WebP"| AP3D
+  AP3D -->|".ap3d"| CODEC
+  CODEC --> GL
+  UIKIT --> GL
   GL --> BND
-  UI --> BND
 ```
 
 ---
 
 ## 主な特徴
 
-### 1. キャラ非依存・データ駆動 WebGL 2-Pass 表示エンジン（`engine/`）
-- **ゼロ・チラつき設計**: 角度量子化なしの連続 0.001° GPU 回転 ＋ 2x インターリーブ・サブスライス（320 層自動補間）＋ 2x スーパーサンプリング FBO。
-- **4 種類のリアルタイム質感モード**:
-  - `SMOOTH AA`（デフォルト）: 不透明テクセル正規化＋`fwidth` サブピクセル境界 AA（黒フチ滲みゼロ）
-  - `PIXEL+AA`: 正方形ドット粒感＋滑らか境界 AA（`DOT SIZE` 調整対応）
-  - `RETRO PX`: ハードエッジドット＋4 方向階段輪郭＋カラー量子化
-  - `SILKY 3D`: フィギュア風の滑らかバイリニア補間
-- **アニメ映え初期設定 & 真の 3D 俯瞰投影**: `PITCH 20°`（`sin θ ≈ 0.35`・`cos θ` による正確な Z 短縮投影）・`ICE LAB`（明るいスタジオ背景）・`SMOOTH AA` を標準設定。
-- **複数 3D スタック前後 Z ソート**: 主役キャラの周囲を泳ぐ 3D 相棒モデル（第 2 FBO）や 3D パーティクルを、カメラ角度に応じて自動でキャラの後ろ／前面へ正確に前後ソート。
-- **宣言的 `motion_pack.json`**: モーション一覧・3D 相棒軌道・吹き出しオーバーレイ・3D パーティクル（`sparkle_perimeter` / `orbit_trail` / `burst_above` / `forward_slash_fan` / `helix_vortex` / `floor_wave_rings`）を JSON で定義するだけでエンジン無改造で動作。
-- **24 コマ・バレットタイムタイムライン**: 一時停止＆スクラブしながら 360° 回転させて攻撃エフェクトや 3D 相棒を観察可能。
+### 1. 再利用可能 WebGL 2-Pass エンジン ＆ 任意 N モーション汎用 UI（`engine/`）
+- **再利用可能なコンポーネント設計（`AnimeStackEngine` + `AnimeUIKit`）**: WebGL コア（`anime_stack_engine.js`）と 100% ピクセル純度 UI コンポーネント（`anime_ui_kit.js` / `anime_ui_theme.css`）を分離。自分の Web アプリやゲームに `mountStudioUI()` 1 行、または個別ウィジェット（スライダー・タイムライン・モーション棚・`.ap3d` ファイル IO）単位で組み込めます。
+- **アニメーション個数無制限（1〜∞ モーション対応）**: 静止モデル（1 個）から 9 個・18 個・50 個以上まで対応。カテゴリフィルタタブ（`motion.category`）、スクロール対応ピクセル棚、`<` / `>`（`[` / `]` キー）送り、実行時 `engine.addMotions()` / `engine.loadScene()` ホットリロードに対応。
+- **独自ポータブル形式 `.ap3d` の書き出し・読込・結合**: 外部 ZIP ライブラリ不要の独自バイナリコンテナ（`AP3D` v1、base64 比約 33% 軽量）。ブラウザ上の **`LOAD` / `+MOTION` / `EXPORT`** ボタンや **ステージへのドラッグ＆ドロップ** でキャラ切替・モーション追加結合・書き出しがオフライン完結します。同梱の軽量ユニバーサルプレイヤー [`examples/ap3d_player.html`](./examples/ap3d_player.html)（約 116 KB）から任意の `.ap3d` を即再生可能。
+- **真の 3D 正射影＆4 質感シェーダー**: 角度量子化ゼロの連続 0.001° GPU 回転 ＋ 真の 3D 正射影（`y = rot.y · sin θ − z · cos θ`、`PITCH 15°〜90°`・初期値 `20°`）＋ 2x インターリーブ補間（320 層）＋ 4 質感モード（`SMOOTH AA` / `PIXEL+AA` / `RETRO PX` / `SILKY 3D`）。
+- **複数 3D スタック前後 Z ソート & 宣言的 FX**: 3D 相棒モデル・吹き出し・3D パーティクルを JSON 定義のみでエンジン無改造駆動。
 
-### 2. アニメ調 3D 制作ツールキット（`toolkit/`）
-- **`gpu_sdf.py`**: CuPy (NVIDIA GPU) を自動検出し、GPU なし環境では NumPy へ自動フォールバックする 3D SDF プリミティブ＆セルシェーディング群。
-- **`anime_face_kit.py`**: 元イラストからの顔抽出・斜め投影・暖色肌ハローを絶対に起こさない表情ペイントヘルパー。
-- **`rig_contracts.py`**: FK 角度制御と 3D 座標 IK を 1 つに統合した `PoseFrame` 契約・体積保存 `sx`・ばね遅延周期曲線。
-- **`qa_validator.py` & `record_gif.py`**: ループ始終端の連続性検証、全フレーム境界クリッピング検査、多角度 3D QA シート出力、Playwright + FFmpeg による高画質 GIF 録画。
+### 2. 多面図自動接合 ＆ アニメ調 3D 制作ツールキット（`toolkit/`）
+- **`multiview_fitter.py`（新搭載・他セッション再現保証）**: 画像生成で作った `FRONT / SIDE / BACK / TOP` 三面図シートを境界フラッドフィルで白服・白目を残したまま自動分割し、Z 軸ランドマーク（頭頂・目・顎・首・肩・腰・足裏）を自動計測。Visual Hull 構築・法線重み付き **6 方向シームレス色接合**・シルエット IoU 自動 QA（`qa_3d_fit_overlay.png`）まで一気通貫で実行できます。
+- **`ap3d_format.py`**: Python CLI で `.ap3d` の `pack` / `unpack` / `inspect` / `merge`（既存キャラへ新モーションを再ベイクなしで結合）に対応。
+- **`gpu_sdf.py` / `anime_face_kit.py` / `rig_contracts.py` / `qa_validator.py` / `record_gif.py`**: CuPy GPU / NumPy CPU 自動切替 SDF、元絵顔斜め投影、FK + 3D IK 統一 `PoseFrame`、境界クリッピング検査＆最適化 GIF 録画。
 
 ---
 
@@ -173,16 +169,21 @@ flowchart LR
 
 ```text
 anime-pseudo-3d/
-├── SKILL.md                      # AI エージェント向けスキル定義 (Antigravity / OpenClaude 互換)
+├── SKILL.md                      # AI エージェント向け 6 段階完全 SOP スキル定義
 ├── README.md / README.en.md / README.zh-CN.md
-├── assets/                       # ロゴアイコン・デモ GIF・質感＆スライス展開比較画像
+├── assets/                       # ロゴアイコン・デモ GIF・質感＆真 3D 俯瞰比較画像
 ├── engine/
-│   ├── anime_stack_engine.js     # キャラ非依存 WebGL 2-Pass エンジン本体
-│   ├── viewer_shell.html         # 100% ピクセル純度 UI シェル (Desktop + Mobile)
-│   ├── motion_pack.schema.json   # motion_pack.json 仕様スキーマ
-│   ├── bundle_standalone.py      # 単一 HTML バンドラ (file:// 直開き対応)
-│   └── audit_pixel_build.py      # ピクセル純度チェッカー
+│   ├── anime_stack_engine.js     # 再利用可能・ホットリロード対応 WebGL 2-Pass エンジン
+│   ├── anime_ui_kit.js           # 再利用可能ピクセル UI キット (任意Nモーション・.ap3d IO)
+│   ├── anime_ui_theme.css        # 100% ピクセル純度スタジオテーマ CSS (Desktop + Mobile)
+│   ├── ap3d_codec.js             # ブラウザ用 .ap3d バイナリ読み書きコーデック (依存ゼロ)
+│   ├── viewer_shell.html         # モジュラー HTML シェル
+│   ├── motion_pack.schema.json   # motion_pack.json 仕様スキーマ (v1.1)
+│   ├── bundle_standalone.py      # 単一 HTML / .ap3d / 汎用プレイヤーバンドラ
+│   └── audit_pixel_build.py      # HTML + CSS + JS ピクセル純度チェッカー
 ├── toolkit/
+│   ├── multiview_fitter.py       # 上下左右多面図の自動分割・Z整列・Visual Hull・6面色接合・IoU QA
+│   ├── ap3d_format.py            # .ap3d バイナリ CLI (pack / unpack / inspect / merge)
 │   ├── gpu_sdf.py                # CuPy GPU / NumPy CPU 3D SDF プリミティブ
 │   ├── anime_face_kit.py         # 斜め顔投影 & 表情合成ヘルパー
 │   ├── rig_contracts.py          # FK/IK 統一 PoseFrame & 周期曲線
@@ -190,11 +191,13 @@ anime-pseudo-3d/
 │   ├── qa_validator.py           # 事前数理 QA + クリップ検査 + 3D QA シート
 │   └── record_gif.py             # Playwright WebGL → FFmpeg 最適化 GIF 録画
 ├── examples/
-│   └── slime_chibi_demo/         # 最小構成の動作確認デモ（キャラ+3D相棒+水FX）
+│   ├── ap3d_player.html          # 軽量ユニバーサル .ap3d プレイヤー (ドラッグ＆ドロップ対応)
+│   └── slime_chibi_demo/         # 最小構成デモ（単一 HTML + slime-chibi.ap3d 自動出力）
 └── references/
-    ├── anime_model_guide.md      # アニメ調モデル設計ガイド
-    ├── animation_24fps_guide.md  # 24 FPS モーション & IK ガイド
-    └── webgl_engine_guide.md     # WebGL エンジン & motion_pack.json リファレンス
+    ├── multiview_3d_reconstruction_guide.md  # 多面図画像生成プロンプト & 3D 接合ガイド
+    ├── anime_model_guide.md                  # アニメ調モデル設計ガイド
+    ├── animation_24fps_guide.md              # 24 FPS モーション & IK ガイド
+    └── webgl_engine_guide.md                 # WebGL エンジン・AnimeUIKit・.ap3d リファレンス
 ```
 
 ---
@@ -207,25 +210,36 @@ git clone https://github.com/kuraneko1/anime-pseudo-3d.git ~/projects/anime-pseu
 ln -s ~/projects/anime-pseudo-3d ~/.agents/skills/anime-pseudo-3d
 ```
 
-### 2. 最小デモをビルドして動作確認
+### 2. 最小デモ（単一 HTML ＋ `.ap3d`）をビルド＆ユニバーサルプレイヤーで再生
 ```bash
 cd ~/projects/anime-pseudo-3d
 python3 examples/slime_chibi_demo/build_demo.py
-# -> examples/slime_chibi_demo/build/slime-chibi-standalone.html をブラウザで開くだけ！
+# -> examples/slime_chibi_demo/build/slime-chibi-standalone.html を開く、
+#    または examples/ap3d_player.html に slime-chibi.ap3d をドラッグ＆ドロップ！
 ```
 
-### 3. ピクセル純度チェック & 単一 HTML バンドル
+### 3. `.ap3d` パッケージ操作 ＆ 単一 HTML バンドル
 ```bash
+# モジュラー全ファイルのピクセル純度監査
 python3 engine/audit_pixel_build.py \
   --html engine/viewer_shell.html \
-  --js engine/anime_stack_engine.js
+  --css engine/anime_ui_theme.css \
+  --js engine/ap3d_codec.js engine/anime_ui_kit.js engine/anime_stack_engine.js
 
+# 単一 HTML とポータブル .ap3d を同時生成
 python3 engine/bundle_standalone.py \
   --html engine/viewer_shell.html \
   --js engine/anime_stack_engine.js \
   --pack your_char/motion_pack.json \
   --assets-root your_char \
+  --export-ap3d dist/your-char.ap3d \
   --out dist/your-char-standalone.html
+
+# 既存 .ap3d へ追加モーションを結合（再ベイク不要）
+python3 toolkit/ap3d_format.py merge \
+  --base dist/your-char.ap3d \
+  --extra dist/more-motions.ap3d \
+  --out dist/your-char-expanded.ap3d
 ```
 
 ---
