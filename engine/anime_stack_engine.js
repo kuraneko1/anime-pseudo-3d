@@ -97,7 +97,10 @@
   if (CFG.badge_icon) {
     document.getElementById("badgeIcon").setAttribute("data-ico", CFG.badge_icon);
   }
-  document.getElementById("motionHead").textContent = `${MOTION_LIST.length} MOTIONS (${curFrameCount()} FRAMES EACH)`;
+  const fcInit = curFrameCount();
+  document.getElementById("motionHead").textContent = (MOTION_LIST.length === 1 && fcInit === 1)
+    ? "STATIC 3D MODEL"
+    : `${MOTION_LIST.length} MOTIONS (${fcInit} FRAMES EACH)`;
   const mGrid = document.getElementById("motionGrid");
   if (MOTION_LIST.length <= 4) mGrid.classList.add("cols-2");
   MOTION_LIST.forEach((m, idx) => {
@@ -1585,5 +1588,6 @@
 
   loadAssets();
   wireUI();
+  updateTimelineUI(0);
   requestAnimationFrame(loop);
 })();
