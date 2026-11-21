@@ -452,6 +452,9 @@ button {
   grid-template-columns: 1fr 1fr 1fr;
   gap: 5px;
 }
+.file-io-row.export-only {
+  grid-template-columns: 1fr;
+}
 .file-io-row .px-btn {
   min-height: 26px;
   padding: 3px 4px;
@@ -1129,14 +1132,19 @@ button {
     }
 
     function setActive(activeId) {
+      const changed = (activeId !== activeMotionId);
       activeMotionId = activeId;
       const curIdx = Math.max(0, allMotions.findIndex((m) => m.id === activeMotionId));
       countBadge.textContent = allMotions.length > 0 ? `${curIdx + 1}/${allMotions.length}` : "0/0";
       grid.querySelectorAll("[data-motion]").forEach((btn) => {
         const isAct = btn.getAttribute("data-motion") === activeMotionId;
         btn.classList.toggle("active", isAct);
-        if (isAct && typeof btn.scrollIntoView === "function") {
-          btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+        if (changed && isAct) {
+          // Scroll ONLY the inner .motion-shelf container so mobile .panel scroll never jumps!
+          const top = btn.offsetTop - shelf.offsetTop;
+          const bot = top + btn.offsetHeight;
+          if (top < shelf.scrollTop) shelf.scrollTop = top;
+          else if (bot > shelf.scrollTop + shelf.clientHeight) shelf.scrollTop = bot - shelf.clientHeight;
         }
       });
     }
@@ -1151,10 +1159,16 @@ button {
     const ico = el("img", "px-ico");
     ico.setAttribute("data-ico", "ico_layers");
     ico.alt = "package";
+    const headTitle = el("span", "", "PACKAGE & EXPORT");
     headLeft.appendChild(ico);
-    headLeft.appendChild(el("span", "", "PACKAGE (.AP3D)"));
+    headLeft.appendChild(headTitle);
     head.appendChild(headLeft);
     section.appendChild(head);
+
+    const fmtBar = el("div", "motion-cat-bar");
+    fmtBar.id = "exportFmtBar";
+    fmtBar.style.display = "none";
+    section.appendChild(fmtBar);
 
     const row = el("div", "file-io-row");
 
@@ -1195,8 +1209,11 @@ button {
     const btnExport = el("button", "px-btn gold", "EXPORT");
     btnExport.type = "button";
     btnExport.id = "btnExportAp3d";
-    btnExport.title = "Export current character & motions as .ap3d";
-    btnExport.addEventListener("click", () => { if (onExport) onExport(); });
+    btnExport.title = "Export in selected format";
+    let selectedFormat = "ap3d";
+    let currentFormats = [];
+    let currentCanLoad = true;
+    btnExport.addEventListener("click", () => { if (onExport) onExport(selectedFormat); });
 
     row.appendChild(btnLoad);
     row.appendChild(btnMerge);
@@ -1205,7 +1222,56 @@ button {
     section.appendChild(inputLoad);
     section.appendChild(inputMerge);
 
-    return { el: section, btnLoad, btnMerge, btnExport, triggerLoad: () => inputLoad.click() };
+    function updateExportLabel() {
+      const active = currentFormats.find((f) => f.id === selectedFormat);
+      btnExport.textContent = (!currentCanLoad && active) ? ("EXPORT " + active.label) : "EXPORT";
+    }
+
+    function syncCapabilities(formats, canLoad) {
+      currentFormats = Array.isArray(formats) ? formats : [];
+      currentCanLoad = Boolean(canLoad);
+      if (currentFormats.length === 0 && !currentCanLoad) {
+        section.style.display = "none";
+        return;
+      }
+      section.style.display = "";
+      headTitle.textContent = currentCanLoad ? "PACKAGE & EXPORT" : "EXPORT 3D / IMAGE";
+      btnLoad.style.display = currentCanLoad ? "" : "none";
+      btnMerge.style.display = currentCanLoad ? "" : "none";
+      row.classList.toggle("export-only", !currentCanLoad);
+
+      if (currentFormats.length > 0 && !currentFormats.some((f) => f.id === selectedFormat)) {
+        selectedFormat = currentFormats[0].id;
+      }
+      fmtBar.innerHTML = "";
+      if (currentFormats.length >= 2) {
+        fmtBar.style.display = "flex";
+        currentFormats.forEach((f) => {
+          const pill = el("button", "cat-pill" + (f.id === selectedFormat ? " active" : ""), f.label);
+          pill.type = "button";
+          pill.setAttribute("data-expfmt", f.id);
+          pill.addEventListener("click", () => {
+            selectedFormat = f.id;
+            fmtBar.querySelectorAll(".cat-pill").forEach((p) => p.classList.toggle("active", p.getAttribute("data-expfmt") === selectedFormat));
+            updateExportLabel();
+          });
+          fmtBar.appendChild(pill);
+        });
+      } else {
+        fmtBar.style.display = "none";
+      }
+      updateExportLabel();
+    }
+
+    return {
+      el: section,
+      btnLoad,
+      btnMerge,
+      btnExport,
+      syncCapabilities,
+      getSelectedFormat: () => selectedFormat,
+      triggerLoad: () => inputLoad.click(),
+    };
   }
 
   function mountStudioUI(rootEl, engine, options) {
@@ -1485,9 +1551,9 @@ button {
       panel.appendChild(sec);
     }
 
-    // 6. Portable Package (.ap3d) Load / Merge / Export
+    // 6. Portable Package (.ap3d) Load / Merge & Selectable Format Export (.ap3d / .png)
     let fileIO = null;
-    if (opts.showFileIO && global.AP3DCodec) {
+    if (opts.showFileIO) {
       fileIO = createFileIOControls({
         onLoadFile: async (file) => {
           try {
@@ -1505,10 +1571,15 @@ button {
             showToast(`MERGE ERROR: ${err.message || err}`);
           }
         },
-        onExport: async () => {
+        onExport: async (fmt) => {
           try {
-            const info = await engine.exportAP3D();
-            showToast(`EXPORTED ${info.filename} (${Math.round(info.bytes / 1024)} KB)`);
+            const info = (typeof engine.exportByFormat === "function")
+              ? await engine.exportByFormat(fmt)
+              : await engine.exportAP3D();
+            if (info && info.filename) {
+              const kb = info.bytes ? ` (${Math.max(1, Math.round(info.bytes / 1024))} KB)` : "";
+              showToast(`EXPORTED ${info.filename}${kb}`);
+            }
           } catch (err) {
             showToast(`EXPORT ERROR: ${err.message || err}`);
           }
@@ -1522,19 +1593,27 @@ button {
     shell.appendChild(panel);
     rootEl.appendChild(shell);
 
-    // Attach stage drag-and-drop for .ap3d files
+    function canAcceptAp3dDrop() {
+      const cap = engine.supportsAP3DLoad && engine.supportsAP3DLoad();
+      return cap !== undefined ? Boolean(cap) : Boolean(global.AP3DCodec);
+    }
+
+    // Attach stage drag-and-drop for .ap3d files (active only when engine supports .ap3d loading)
     let dragCounter = 0;
     stageWrap.addEventListener("dragenter", (e) => {
+      if (!canAcceptAp3dDrop()) return;
       e.preventDefault();
       dragCounter++;
       dropOverlay.classList.add("active");
     });
-    stageWrap.addEventListener("dragover", (e) => { e.preventDefault(); });
+    stageWrap.addEventListener("dragover", (e) => { if (canAcceptAp3dDrop()) e.preventDefault(); });
     stageWrap.addEventListener("dragleave", () => {
+      if (!canAcceptAp3dDrop()) return;
       dragCounter = Math.max(0, dragCounter - 1);
       if (dragCounter === 0) dropOverlay.classList.remove("active");
     });
     stageWrap.addEventListener("drop", async (e) => {
+      if (!canAcceptAp3dDrop()) return;
       e.preventDefault();
       dragCounter = 0;
       dropOverlay.classList.remove("active");
@@ -1642,6 +1721,10 @@ button {
       motionShelf.refresh(motions, st.motion);
       const curM = engine.getActiveMotion();
       timeline.update(st.manualFrame, curM ? (curM.frames || 24) : 1);
+      if (fileIO) {
+        const fmts = (engine.getExportFormats && engine.getExportFormats()) || (global.AP3DCodec ? [{ id: "ap3d", label: ".AP3D" }] : []);
+        fileIO.syncCapabilities(fmts, canAcceptAp3dDrop());
+      }
       syncAll();
       hydrateIcons();
     }
@@ -2050,7 +2133,23 @@ window.SPRITE_ASSETS = {};
         m = max(m, texture2D(uFboTex, vUv + vec2( dd.x, -dd.y)).a);
         m = max(m, texture2D(uFboTex, vUv + vec2(-dd.x, -dd.y)).a);
 
-        float outA = smoothstep(0.18, 0.62, m);
+        float outA;
+        if (uCompMode == 3) {
+          // 16-direction circular ring + smooth feathering for jaggy-free SILKY 3D outlines even at 2.5x zoom
+          vec2 d1 = d * vec2(0.9238795, 0.3826834);
+          vec2 d2 = d * vec2(0.3826834, 0.9238795);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d1.x,  d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d1.x,  d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d1.x, -d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d1.x, -d1.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d2.x,  d2.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d2.x,  d2.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2( d2.x, -d2.y)).a);
+          m = max(m, texture2D(uFboTex, vUv + vec2(-d2.x, -d2.y)).a);
+          outA = smoothstep(0.10, 0.78, m);
+        } else {
+          outA = smoothstep(0.18, 0.62, m);
+        }
         if (outA < 0.01) discard;
         vec3 outPremul = uOutCol * outA;
         gl_FragColor = vec4(fg.rgb + outPremul * (1.0 - fg.a), fg.a + outA * (1.0 - fg.a));
@@ -2175,6 +2274,7 @@ window.SPRITE_ASSETS = {};
 
     let charVBO1x = null;
     let charVBO2x = null;
+    let charVBO4x = null;
     let charFbo = null;
     let CHAR_PIVOT_X = 98;
     let companionGpu = {};
@@ -2266,12 +2366,72 @@ window.SPRITE_ASSETS = {};
       loadingKeys.add(key);
       const img = new Image();
       img.onload = () => {
+        // Ignore stale decodes evicted after a fast motion/scene switch
+        if (!loadingKeys.has(key)) {
+          img.src = "";
+          return;
+        }
         images[key] = img;
         loadedKeys.add(key);
         loadingKeys.delete(key);
         if (onReady) onReady(img);
       };
       img.src = ASSET_MAP[key];
+    }
+
+    function getAtlasPrefixes() {
+      const prefixes = [];
+      for (const m of MOTION_LIST) {
+        if (m && m.keyPrefix && !prefixes.includes(m.keyPrefix)) prefixes.push(m.keyPrefix);
+      }
+      for (const cd of Object.values(COMPANION_DEFS)) {
+        if (cd && cd.keyPrefix && !prefixes.includes(cd.keyPrefix)) prefixes.push(cd.keyPrefix);
+      }
+      return prefixes;
+    }
+
+    function getActiveAtlasPrefixes(motionDef) {
+      const keep = [];
+      if (motionDef && motionDef.keyPrefix) keep.push(motionDef.keyPrefix);
+      if (motionDef && motionDef.companion && COMPANION_DEFS[motionDef.companion.id]) {
+        const kp = COMPANION_DEFS[motionDef.companion.id].keyPrefix;
+        if (kp) keep.push(kp);
+      }
+      return keep;
+    }
+
+    function activeTexBudget() {
+      const m = curMotionDef();
+      let budget = m ? (m.frames || 24) : 24;
+      if (m && m.companion && COMPANION_DEFS[m.companion.id]) {
+        budget += COMPANION_DEFS[m.companion.id].frames || 24;
+      }
+      return Math.max(28, budget + 4);
+    }
+
+    function evictInactiveMotionAssets(keepMotionDef) {
+      const keepPrefixes = getActiveAtlasPrefixes(keepMotionDef);
+      const evictPrefixes = getAtlasPrefixes().filter((p) => !keepPrefixes.includes(p));
+      if (!evictPrefixes.length) return;
+      const shouldEvict = (k) => evictPrefixes.some((p) => k.startsWith(p));
+      for (const [k, tex] of Array.from(gpuTexCache.entries())) {
+        if (shouldEvict(k)) {
+          gl.deleteTexture(tex);
+          gpuTexCache.delete(k);
+        }
+      }
+      for (const k of Array.from(loadedKeys)) {
+        if (shouldEvict(k)) {
+          if (images[k]) {
+            images[k].src = "";
+            delete images[k];
+          }
+          loadedKeys.delete(k);
+        }
+      }
+      for (const k of Array.from(loadingKeys)) {
+        if (shouldEvict(k)) loadingKeys.delete(k);
+      }
     }
 
     function preloadMotion(motionId) {
@@ -2304,7 +2464,8 @@ window.SPRITE_ASSETS = {};
       const img = images[key];
       if (!img) return null;
       const tex = createStaticTexture(img, false);
-      if (gpuTexCache.size >= 72) {
+      const maxTex = activeTexBudget();
+      while (gpuTexCache.size >= maxTex) {
         const oldestKey = gpuTexCache.keys().next().value;
         gl.deleteTexture(gpuTexCache.get(oldestKey));
         gpuTexCache.delete(oldestKey);
@@ -2342,8 +2503,9 @@ window.SPRITE_ASSETS = {};
     function disposeSceneGpu() {
       if (charVBO1x) gl.deleteBuffer(charVBO1x.buf);
       if (charVBO2x) gl.deleteBuffer(charVBO2x.buf);
+      if (charVBO4x) gl.deleteBuffer(charVBO4x.buf);
       disposeFbo(charFbo);
-      charVBO1x = null; charVBO2x = null; charFbo = null;
+      charVBO1x = null; charVBO2x = null; charVBO4x = null; charFbo = null;
 
       for (const cid of Object.keys(companionGpu)) {
         const cg = companionGpu[cid];
@@ -2396,9 +2558,11 @@ window.SPRITE_ASSETS = {};
         ? Math.max(15, Math.min(90, Math.round(DEFAULTS.pitchDeg)))
         : Math.max(15, Math.min(90, Math.round((Math.asin(Math.max(0.25, Math.min(1.0, DEFAULTS.squash))) * 180) / Math.PI)));
 
+      const fboSS = Math.max(2, Math.min(4, Math.round(CHAR.fboSS || 2)));
       charVBO1x = buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 1);
       charVBO2x = buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 2);
-      charFbo = createFboTarget(CHAR.fboVirtW, CHAR.fboVirtH, 2);
+      charVBO4x = (fboSS >= 3) ? buildStackVBO(CHAR.sliceCount, CHAR.atlasCols, 4) : null;
+      charFbo = createFboTarget(CHAR.fboVirtW, CHAR.fboVirtH, fboSS);
       CHAR_PIVOT_X = charFbo.virtW * 0.5;
 
       for (const [cid, cdef] of Object.entries(COMPANION_DEFS)) {
@@ -2422,23 +2586,18 @@ window.SPRITE_ASSETS = {};
       state.faceFocus = false;
       state.themeIdx = DEFAULTS.themeIdx;
 
-      // Preload static FX/UI sprites & active motion first
+      // Preload ONLY true static FX/UI/billboard sprites (never upload sprite-stack motion/companion atlases into permanent staticTex!)
+      const atlasPrefixes = getAtlasPrefixes();
       for (const key of Object.keys(ASSET_MAP)) {
-        if (!key.startsWith("anim_") && !key.startsWith("whale_")) {
+        const isAtlas = key.startsWith("anim_") || key.startsWith("whale_") || atlasPrefixes.some((p) => key.startsWith(p));
+        if (!isAtlas) {
           ensureImageLoaded(key, (img) => {
             staticTex[key] = createStaticTexture(img, !!ASSET_LINEAR[key]);
           });
         }
       }
+      // On-demand VRAM management: decode & upload ONLY the currently active motion (and its companion, if any)
       if (state.motion) preloadMotion(state.motion);
-      let preloadIdx = 0;
-      function preloadNextMotion() {
-        if (preloadIdx >= MOTION_LIST.length) return;
-        const m = MOTION_LIST[preloadIdx++];
-        if (m.id !== state.motion) preloadMotion(m.id);
-        setTimeout(preloadNextMotion, 120);
-      }
-      setTimeout(preloadNextMotion, 260);
 
       notifyScene();
     }
@@ -2861,7 +3020,10 @@ window.SPRITE_ASSETS = {};
       );
 
       if (atlasTex) {
-        const vbo = (zStep < 0.05 || state.spacing > 1.32) ? charVBO1x : charVBO2x;
+        let vbo = (zStep < 0.05 || state.spacing > 1.32) ? charVBO1x : charVBO2x;
+        if (state.renderMode === 3 && charVBO4x && zStep >= 0.05 && state.spacing <= 1.32) {
+          vbo = charVBO4x;
+        }
         renderStackToFbo(
           charFbo, vbo, atlasTex,
           CHAR.sliceW, CHAR.sliceH, CHAR.atlasCols, CHAR.atlasRows,
@@ -3033,6 +3195,7 @@ window.SPRITE_ASSETS = {};
     function selectMotion(motionId) {
       const m = MOTION_BY_ID[motionId];
       if (!m) return;
+      evictInactiveMotionAssets(m);
       preloadMotion(motionId);
       state.motion = motionId;
       state.motionSwitchTime = performance.now() * 0.001;
@@ -3249,6 +3412,32 @@ window.SPRITE_ASSETS = {};
       triggerBounce: () => impulseSquash(0.84, 1.20),
       toggleFlag: (k) => { state[k] = !state[k]; notifyState(); },
       cycleTheme: () => { state.themeIdx = (state.themeIdx + 1) % THEMES.length; notifyState(); },
+
+      supportsAP3DLoad: () => Boolean(global.AP3DCodec),
+      getExportFormats: () => {
+        const fmts = [];
+        if (global.AP3DCodec) fmts.push({ id: "ap3d", label: ".AP3D" });
+        fmts.push({ id: "png", label: ".PNG" });
+        return fmts;
+      },
+
+      async exportPNG() {
+        const slug = String(CFG.title || "character").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "character";
+        const filename = slug + ".png";
+        const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+        if (!blob) throw new Error("Canvas PNG capture failed");
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return { filename, bytes: blob.size };
+      },
+
+      async exportByFormat(fmt) {
+        if (fmt === "png") return this.exportPNG();
+        return this.exportAP3D();
+      },
 
       async exportAP3D() {
         if (!global.AP3DCodec) throw new Error("AP3DCodec script not loaded");

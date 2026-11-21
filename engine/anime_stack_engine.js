@@ -599,12 +599,72 @@
       loadingKeys.add(key);
       const img = new Image();
       img.onload = () => {
+        // Ignore stale decodes evicted after a fast motion/scene switch
+        if (!loadingKeys.has(key)) {
+          img.src = "";
+          return;
+        }
         images[key] = img;
         loadedKeys.add(key);
         loadingKeys.delete(key);
         if (onReady) onReady(img);
       };
       img.src = ASSET_MAP[key];
+    }
+
+    function getAtlasPrefixes() {
+      const prefixes = [];
+      for (const m of MOTION_LIST) {
+        if (m && m.keyPrefix && !prefixes.includes(m.keyPrefix)) prefixes.push(m.keyPrefix);
+      }
+      for (const cd of Object.values(COMPANION_DEFS)) {
+        if (cd && cd.keyPrefix && !prefixes.includes(cd.keyPrefix)) prefixes.push(cd.keyPrefix);
+      }
+      return prefixes;
+    }
+
+    function getActiveAtlasPrefixes(motionDef) {
+      const keep = [];
+      if (motionDef && motionDef.keyPrefix) keep.push(motionDef.keyPrefix);
+      if (motionDef && motionDef.companion && COMPANION_DEFS[motionDef.companion.id]) {
+        const kp = COMPANION_DEFS[motionDef.companion.id].keyPrefix;
+        if (kp) keep.push(kp);
+      }
+      return keep;
+    }
+
+    function activeTexBudget() {
+      const m = curMotionDef();
+      let budget = m ? (m.frames || 24) : 24;
+      if (m && m.companion && COMPANION_DEFS[m.companion.id]) {
+        budget += COMPANION_DEFS[m.companion.id].frames || 24;
+      }
+      return Math.max(28, budget + 4);
+    }
+
+    function evictInactiveMotionAssets(keepMotionDef) {
+      const keepPrefixes = getActiveAtlasPrefixes(keepMotionDef);
+      const evictPrefixes = getAtlasPrefixes().filter((p) => !keepPrefixes.includes(p));
+      if (!evictPrefixes.length) return;
+      const shouldEvict = (k) => evictPrefixes.some((p) => k.startsWith(p));
+      for (const [k, tex] of Array.from(gpuTexCache.entries())) {
+        if (shouldEvict(k)) {
+          gl.deleteTexture(tex);
+          gpuTexCache.delete(k);
+        }
+      }
+      for (const k of Array.from(loadedKeys)) {
+        if (shouldEvict(k)) {
+          if (images[k]) {
+            images[k].src = "";
+            delete images[k];
+          }
+          loadedKeys.delete(k);
+        }
+      }
+      for (const k of Array.from(loadingKeys)) {
+        if (shouldEvict(k)) loadingKeys.delete(k);
+      }
     }
 
     function preloadMotion(motionId) {
@@ -637,7 +697,8 @@
       const img = images[key];
       if (!img) return null;
       const tex = createStaticTexture(img, false);
-      if (gpuTexCache.size >= 72) {
+      const maxTex = activeTexBudget();
+      while (gpuTexCache.size >= maxTex) {
         const oldestKey = gpuTexCache.keys().next().value;
         gl.deleteTexture(gpuTexCache.get(oldestKey));
         gpuTexCache.delete(oldestKey);
@@ -758,23 +819,18 @@
       state.faceFocus = false;
       state.themeIdx = DEFAULTS.themeIdx;
 
-      // Preload static FX/UI sprites & active motion first
+      // Preload ONLY true static FX/UI/billboard sprites (never upload sprite-stack motion/companion atlases into permanent staticTex!)
+      const atlasPrefixes = getAtlasPrefixes();
       for (const key of Object.keys(ASSET_MAP)) {
-        if (!key.startsWith("anim_") && !key.startsWith("whale_")) {
+        const isAtlas = key.startsWith("anim_") || key.startsWith("whale_") || atlasPrefixes.some((p) => key.startsWith(p));
+        if (!isAtlas) {
           ensureImageLoaded(key, (img) => {
             staticTex[key] = createStaticTexture(img, !!ASSET_LINEAR[key]);
           });
         }
       }
+      // On-demand VRAM management: decode & upload ONLY the currently active motion (and its companion, if any)
       if (state.motion) preloadMotion(state.motion);
-      let preloadIdx = 0;
-      function preloadNextMotion() {
-        if (preloadIdx >= MOTION_LIST.length) return;
-        const m = MOTION_LIST[preloadIdx++];
-        if (m.id !== state.motion) preloadMotion(m.id);
-        setTimeout(preloadNextMotion, 120);
-      }
-      setTimeout(preloadNextMotion, 260);
 
       notifyScene();
     }
@@ -1372,6 +1428,7 @@
     function selectMotion(motionId) {
       const m = MOTION_BY_ID[motionId];
       if (!m) return;
+      evictInactiveMotionAssets(m);
       preloadMotion(motionId);
       state.motion = motionId;
       state.motionSwitchTime = performance.now() * 0.001;
